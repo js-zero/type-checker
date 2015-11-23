@@ -1,0 +1,31 @@
+{
+  "name": "js-zero",
+  "version": "0.0.1",
+  "description": "A type-safe subset of ES6",
+  "main": "index.js",
+  "bin": {
+    "jsz": "bin/jsz"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Gilbert <gilbertbagrza@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "esprima": "^2.6.0",
+    "estraverse": "^4.1.0"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/js-zero/type-checker.git"
+  },
+  "keywords": [
+    "types",
+    "type-checker"
+  ],
+  "bugs": {
+    "url": "https://github.com/js-zero/type-checker/issues"
+  },
+  "homepage": "https://github.com/js-zero/type-checker#readme"
+}

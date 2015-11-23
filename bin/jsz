@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+
+var jsz = require('../index.js')
+jsz.typeCheckFile( process.argv[2] )
