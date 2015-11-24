@@ -3,8 +3,10 @@
  */
 var ESTraverse = require('estraverse')
 var Scope = require('./lib/scope')
+var ErrorReporter = require('./error-reporter')
+
 var t = require('./types')
-var pretty = require('./pretty')
+
 var util = require('util')
 var inspect = function (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }
 var fail = require('./lib/assert').fail
@@ -18,8 +20,13 @@ exports.typeCheck = function (ast, scopes) {
   log("\n----\nGOT constraints: (", +results.constraints.length+ ")", inspect(results.constraints))
   // console.log("GOT constraints: (" +constraints.length+ ")", inspect(constraints))
 
-  var substitutions = unify(results.constraints, [], results.nodeMap)
-  log("GOT Substitutions (", substitutions.length, " )\n", inspect(substitutions))
+  try {
+    var substitutions = unify(results.constraints, [], results.nodeMap)
+    log("GOT Substitutions (", substitutions.length, " )\n", inspect(substitutions))
+  }
+  catch (errorContext) {
+    ErrorReporter.report(ast, errorContext)
+  }
 }
 
 
@@ -292,17 +299,10 @@ var unify = function (constraints, substitutions, nodeMap) {
       }
 
     default:
-      var leftPos = t.posNode(left)
-      var rightPos = t.posNode(right)
-
       var leftNode = left.source || nodeMap[left._id]
       var rightNode = right.source || nodeMap[right._id]
 
-      throw new Error(`
-cannot unify \`${pretty.type(left)}\` and \`${pretty.type(right)}\`
-    ${left.tag}: ${pretty.node(leftNode)} at line ${leftNode.loc.start.line} col ${leftNode.loc.start.column+1}
-    ${right.tag}: ${pretty.node(rightNode)} at line ${rightNode.loc.start.line} col ${rightNode.loc.start.column+1}
-`)
+      throw { leftNode, leftType: left, rightNode, rightType: right }
   }
 
 }
