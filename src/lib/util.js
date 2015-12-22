@@ -2,7 +2,9 @@
 module.exports = {
   extend: extend,
   flattenOneLevel: flattenOneLevel,
-  pushAll: pushAll
+  pushAll: pushAll,
+  objMap: objMap,
+  objFilter: objFilter
 }
 
 var slice = [].slice
@@ -31,4 +33,20 @@ function flattenOneLevel (array) {
 function pushAll (array, otherArray) {
   array.push.apply(array, otherArray)
   return array
+}
+
+function objMap (obj, fn) {
+  var results = {}
+  for (var key in obj) {
+    results[key] = fn(obj[key], key)
+  }
+  return results
+}
+
+function objFilter (obj, fn) {
+  var results = {}
+  for (var key in obj) {
+    if ( fn(obj[key], key) ) results[key] = obj[key]
+  }
+  return results
 }

@@ -2,39 +2,44 @@ var extend = require('./lib/util').extend
 
 exports.eq = eq
 exports.posNode = posNode
+exports.substitute = substitute
+exports.freshTypeVar = freshTypeVar
 
-exports.Any = function () {
-  return { type: 'type', name: 'Any', args: [] }
+exports.Constraint = function (left, right) {
+  return { tag: 'Constraint', left: left, right: right }
 }
 
-exports.Const = function (left, right) {
-  return { tag: 'Const', left: left, right: right }
+// Debugging
+var includeSource = false
+
+// (Fresh) Type Variable
+var varIdCounter = 5000;
+exports.TypeVar = function (sourceNode) {
+  varIdCounter += 1
+  return { tag: 'TypeVar', source: includeSource && sourceNode, _id: varIdCounter }
 }
-exports.TermExpr = function (node) {
-  return { tag: 'TermExpr', _id: node._id }
-}
-exports.TermVar = function (id) {
-  return { tag: 'TermVar', id: id, _id: id._id }
-}
+
+// Concrete types
 exports.TermNum = function (sourceNode) {
-  return { tag: 'TermNum', source: sourceNode }
+  return { tag: 'TermNum', source: includeSource && sourceNode }
 }
 exports.TermBool = function (sourceNode) {
-  return { tag: 'TermBool', source: sourceNode }
+  return { tag: 'TermBool', source: includeSource && sourceNode }
 }
 exports.TermString = function (sourceNode) {
-  return { tag: 'TermString', source: sourceNode }
+  return { tag: 'TermString', source: includeSource && sourceNode }
 }
 exports.TermUndefined = function (sourceNode) {
-  return { tag: 'TermUndefined', source: sourceNode }
+  return { tag: 'TermUndefined', source: includeSource && sourceNode }
 }
 exports.TermArrow = function (sourceNode, domain, range) {
-  return { tag: 'TermArrow', domain: domain, range: range, source: sourceNode }
+  return { tag: 'TermArrow', domain: domain, range: range, source: includeSource && sourceNode }
 }
+exports.TermPlaceholder = {}
 
 // (Term, Term) => Subst
-exports.Subst = function (variable, subVal) {
-  return { tag: 'Subst', left: variable, right: subVal }
+exports.Substitution = function (variable, subVal) {
+  return { tag: 'Substitution', left: variable, right: subVal }
 }
 
 function eq (a, b) {
@@ -43,16 +48,19 @@ function eq (a, b) {
    || a.tag === 'TermString'
    || a.tag === 'TermUndefined'
   ) {
-    return a.tag === b.tag
+    return b.tag === a.tag
   }
-  else if (a.tag === 'TermArrow' && b.tag === 'TermArrow') {
-    return arrayEq(a.domain.map( p => p._id ), b.domain.map( p => p._id ))
-        && a.range._id === b.range._id
+  else if (a.tag === 'TypeVar') {
+    return b.tag === 'TypeVar' && a._id === b._id
   }
-  else if (a._id && b._id) {
-    return a._id === b._id
+  else if (a.tag === 'TermArrow') {
+    return b.tag === 'TermArrow'
+        && arrayEq(a.domain.map( p => p._ref ), b.domain.map( p => p._ref ))
+        && a.range._ref === b.range._ref
   }
-  return false
+  else {
+    throw Error("Unrecognized type.")
+  }
 }
 
 
@@ -70,4 +78,41 @@ function arrayEq (a, b) {
     if (a[i] !== b[i]) return false
   }
   return true
+}
+
+
+
+function substitute (sub, type) {
+  if ( type.tag === 'TermArrow' ) {
+    return exports.TermArrow(
+      type.source,
+      type.domain.map( term => substitute(sub, term) ),
+      substitute( sub, type.range )
+    )
+  }
+  else if ( eq(sub.left, type) ) {
+    return sub.right
+  }
+  else {
+    return type
+  }
+}
+
+function freshTypeVar (cache, type) {
+  if ( type.tag === 'TypeVar' ) {
+    if ( ! cache[type._id] ) {
+      cache[type._id] = exports.TypeVar(type.source)
+    }
+    return cache[type._id]
+  }
+  else if ( type.tag === 'TermArrow' ) {
+    return exports.TermArrow(
+      type.source,
+      type.domain.map( term => freshTypeVar(cache, term) ),
+      freshTypeVar( cache, type.range() )
+    )
+  }
+  else {
+    return type
+  }
 }

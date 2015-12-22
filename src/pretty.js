@@ -1,6 +1,7 @@
 
 exports.type = prettyType
 exports.node = prettyNode
+exports.env  = prettyEnv
 
 function prettyType (type) {
   switch (type.tag) {
@@ -36,4 +37,13 @@ function prettyNode (node) {
       console.log("Unknown node:", node)
       return node.type
   }
+}
+
+function prettyEnv (env) {
+  var output = ""
+  for (var varName in env.typings) {
+    var typing = env.typings[varName]
+    output += `${ varName }: ${ prettyType(typing.type) }\n`
+  }
+  return output
 }
