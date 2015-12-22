@@ -42,10 +42,10 @@ function prettyNode (node, options) {
 }
 
 function prettyEnv (env) {
-  var output = ""
+  var output = []
   for (var varName in env.typings) {
     var typing = env.typings[varName]
-    output += `    ${ varName }: ${ prettyType(typing.type) }\n`
+    output.push(`    ${ varName }: ${ prettyType(typing.type) }`)
   }
-  return output
+  return output.join('\n')
 }

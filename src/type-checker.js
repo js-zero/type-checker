@@ -4,9 +4,9 @@
  */
 'use strict'
 
-var ESTraverse = require('estraverse')
-var Scope = require('./lib/scope')
-var ErrorReporter = require('./error-reporter')
+var ESTraverse   = require('estraverse')
+var Scope        = require('./lib/scope')
+var JszTypeError = require('./lib/type-error')
 
 var Env     = require('./lib/environment')
 var Typing  = require('./lib/typing')
@@ -29,14 +29,14 @@ exports.typeCheck = function (ast, scopes) {
   var env = Env(null)
 
   try {
-    var env_ = buildEnv(env, ast)
+    buildEnv(env, ast)
     log("\n----\nGOT environment:", inspect(env_))
-    return env_
+    return { env: env, typeErrors: [] }
   }
   catch (err) {
-    if (err instanceof ErrorReporter.TypeError) {
-      ErrorReporter.report(ast, env, err)
-      return false
+    if (err instanceof JszTypeError) {
+      // Eventually we want to be able to return multiple type errors in one go
+      return { env: env, typeErrors: [err] }
     }
     else {
       throw err
@@ -362,7 +362,7 @@ function unify (env, constraints) {
       }
 
     default:
-      throw new ErrorReporter.TypeError(env, left, right)
+      throw new JszTypeError(env, left, right)
   }
 
 }

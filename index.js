@@ -1,6 +1,6 @@
-var fs = require('fs')
+var fs      = require('fs')
 var esprima = require('esprima')
-var pretty = require('./src/pretty')
+var pretty  = require('./src/pretty')
 
 exports.typeCheckFile = function (file) {
 
@@ -13,11 +13,16 @@ exports.typeCheckFile = function (file) {
   })
 
   var TypeChecker = require('./src/type-checker')
-  var env = TypeChecker.typeCheck(ast)
+  var result = TypeChecker.typeCheck(ast)
 
-  if (env !== false) {
-    console.log("\n  I have inferred the following types:\n")
-    console.log(pretty.env(env))
+  console.log("\n  I have inferred the following types:\n")
+  console.log(pretty.env(result.env))
+
+  if (result.typeErrors.length) {
+    var ErrorReporter = require('./src/error-reporter')
+    result.typeErrors.map( err => ErrorReporter.report(result.env, err) )
+  }
+  else {
     console.log("  No type errors were found in your code. Great job!\n")
   }
 

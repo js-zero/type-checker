@@ -1,8 +1,7 @@
 var fs = require('fs')
-var util = require('util')
 var pretty = require('./pretty')
 
-exports.report = function (ast, env, typeErr) {
+exports.report = function (env, typeErr) {
 
   var leftType  = typeErr.leftType
   var rightType = typeErr.rightType
@@ -13,7 +12,7 @@ exports.report = function (ast, env, typeErr) {
   var rpt = pretty.type(rightType)
 
   var message = `
-  Your code has a type mismatch between \`${lpt}\` and \`${rpt}\`!
+  However, your code has a type mismatch between \`${lpt}\` and \`${rpt}\`:
 
     You have ${ pretty.node(leftType.source, { article: true }) }
       with type \`${ lpt }\`
@@ -36,20 +35,6 @@ exports.report = function (ast, env, typeErr) {
 
   console.log(message)
 }
-
-exports.TypeError = function TypeError (env, leftType, rightType) {
-
-  Error.captureStackTrace(this, this.constructor)
-  this.name = 'TypeError'
-
-  this.leftType = leftType
-  this.rightType = rightType
-
-  this.leftNode = leftType.source
-  this.rightNode = rightType.source
-}
-util.inherits(exports.TypeError, Error)
-
 
 var fileCache = {}
 function fileSource (loc) {
