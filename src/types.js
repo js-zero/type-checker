@@ -87,7 +87,8 @@ function substitute (sub, type) {
     )
   }
   else if ( eq(sub.left, type) ) {
-    return sub.right
+    // Retain original source node
+    return Object.assign(sub.right, { source: type.source })
   }
   else {
     return type
