@@ -1,5 +1,5 @@
+var _ = require('lodash')
 var t = require('../types')
-var objMap = require('../util').objMap
 //
 // Typings
 //
@@ -53,7 +53,7 @@ methods.instantiate = function () {
   var fresh = (ty) => t.freshTypeVar(cache, ty)
 
   return Typing(
-    objMap(this.monoEnv, fresh ),
+    _.mapValues(this.monoEnv, fresh ),
     fresh( this.type )
   )
 }

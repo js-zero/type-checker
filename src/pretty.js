@@ -1,4 +1,3 @@
-var u = require('./util')
 
 exports.type = prettyType
 exports.node = prettyNode

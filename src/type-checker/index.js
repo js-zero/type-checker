@@ -10,20 +10,13 @@ var Errors       = require('./type-errors')
 
 var Env     = require('./environment')
 var Typing  = require('./typing')
-var t      = require('../types')
+var t       = require('../types')
 
 var util = require('util')
 var inspect = function (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }
 var fail = require('./assert').fail
 
-var utilLib = require('../util')
-var flattenOneLevel = utilLib.flattenOneLevel
-var pushAll         = utilLib.pushAll
-var extend          = utilLib.extend
-var objMap          = utilLib.objMap
-var objFilter       = utilLib.objFilter
-var findIndex       = utilLib.findIndex
-var identity        = (x) => x
+var _ = require('lodash')
 
 
 exports.typeCheck = function (ast, scopes) {
@@ -138,8 +131,9 @@ function inferExpr (env, node) {
 
       var subAll = subAllWith(substitutions)
 
-      var arrayMonoEnv = extend(
-        elemMonoEnvs.map( mEnv => objMap(mEnv, subAll) )
+      var arrayMonoEnv = _.extend(
+        {},
+        elemMonoEnvs.map( mEnv => _.mapValues(mEnv, subAll) )
       )
 
       return Typing(arrayMonoEnv, t.TermArray(node, subAll(elemType)))
@@ -157,7 +151,7 @@ function inferExpr (env, node) {
       var rightTyping = inferExpr(env, node.right)
 
       var substitutions = unifyMonoEnvs(
-        identity,
+        _.identity,
         env,
         [ leftTyping.monoEnv, rightTyping.monoEnv ],
         [
@@ -169,9 +163,9 @@ function inferExpr (env, node) {
       // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
       var subAll = subAllWith(substitutions)
 
-      var constraints = extend(
-        objMap( leftTyping.monoEnv, subAll ),
-        objMap( rightTyping.monoEnv, subAll )
+      var constraints = _.extend(
+        _.mapValues( leftTyping.monoEnv, subAll ),
+        _.mapValues( rightTyping.monoEnv, subAll )
       )
 
       return Typing(constraints, t.TermNum(node))
@@ -227,7 +221,7 @@ function inferExpr (env, node) {
       // Ensure types of params and function body all agree.
       //
       var substitutions = unifyMonoEnvs(
-        identity,
+        _.identity,
         functionEnv,
         paramTypings.map( pt => pt.monoEnv ).concat([ bodyTyping.monoEnv ])
       )
@@ -241,18 +235,18 @@ function inferExpr (env, node) {
       var subAll = subAllWith(substitutions)
 
       // 𝚿Δ_0 ∪ 𝚿Δ'
-      var allConstraints = extend(
-        objMap( functionMonoEnv, subAll ),
-        objMap( bodyTyping.monoEnv, subAll )
+      var allConstraints = _.extend(
+        _.mapValues( functionMonoEnv, subAll ),
+        _.mapValues( bodyTyping.monoEnv, subAll )
       )
 
       // \ U[ i=1..n; dom( Δ_i ) ]
       // Each param typing type should be a type variable.
       // TODO: Handle destructuring
       var paramNames = node.params.map( p => p.name )
-      var constraints = objFilter(
+      var constraints = _.omit(
         allConstraints,
-        (c, varName) => paramNames.indexOf(varName) === -1
+        (c, varName) => _.includes(paramNames, varName)
       )
 
       // For final type, pull out of substitution-applied constraints.
@@ -306,8 +300,8 @@ function inferExpr (env, node) {
       var subAll = subAllWith(substitutions)
 
       var callMonoEnv = argumentTypings.reduce(
-        (monoEnv, typing) => Object.assign(monoEnv, objMap( typing.monoEnv, subAll )),
-        objMap( calleeTyping.monoEnv, subAll )
+        (monoEnv, typing) => Object.assign(monoEnv, _.mapValues( typing.monoEnv, subAll )),
+        _.mapValues( calleeTyping.monoEnv, subAll )
       )
 
       // 𝞣 = 𝚿α
@@ -340,7 +334,7 @@ function unifyMonoEnvs (typeErrorHandler, env, monoEnvs, existingConstraints) {
   // For each array of variable usages,
   // create a fresh type variable for all to agree on.
   //
-  var constraints = flattenOneLevel(
+  var constraints = _.flatten(
     Object.keys(varTypeMap).map(function(varName) {
       var usages = varTypeMap[varName]
       var freshTypeVar = t.TypeVar(null)
@@ -389,7 +383,7 @@ function unify (env, constraints) {
         var newConstraints = [
           t.Constraint(left.range, right.range)
         ].concat(
-          zip(left.domain, right.domain).map( terms => t.Constraint.apply(null, terms) )
+          _.zip(left.domain, right.domain).map( terms => t.Constraint.apply(null, terms) )
         )
         log("=> Pushing new constraints from Arrow:", inspect(newConstraints))
         pushAll(constraints, newConstraints)
@@ -461,14 +455,6 @@ function litTermFromNode (node) {
   fail("No such type from literal: " + node.value)
 }
 
-function zip (a, b) {
-  var results = []
-  for (var i=0; i < a.length; i++) {
-    results.push([a[i], b[i]])
-  }
-  return results
-}
-
 function subAllWith (substitutions) {
   return (type) => substitutions.reduce( (ty, sub) => t.substitute(sub, ty), type )
 }
@@ -476,4 +462,9 @@ function subAllWith (substitutions) {
 var log = function () {
   if (! process.env.DEBUG_TYPES) return
   console.log.apply(console, [].slice.call(arguments))
+}
+
+function pushAll (array, otherArray) {
+  array.push.apply(array, otherArray)
+  return array
 }

@@ -1,5 +1,5 @@
 var util = require('util')
-var u    = require('../util')
+var _    = require('lodash')
 var t    = require('../types')
 
 exports.TypeError = function TypeError (env, leftType, rightType) {
@@ -22,7 +22,7 @@ exports.CallTypeError = function CallTypeError (err, env, node, calleeTyping, ar
   this.name = 'CallTypeError'
   this.node = node
 
-  this.badArgIndex = u.findIndex(
+  this.badArgIndex = _.findIndex(
     argTypings,
     a => t.eq(a.type, err.leftType) || t.eq(a.type, err.rightType)
   )
