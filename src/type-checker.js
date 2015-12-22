@@ -216,10 +216,10 @@ function inferExpr (env, node) {
       // \ U[ i=1..n; dom( Δ_i ) ]
       // Each param typing type should be a type variable.
       // TODO: Handle destructuring
-      var paramTypeVarIds = paramTypings.map( pt => pt.type._id )
+      var paramNames = node.params.map( p => p.name )
       var constraints = objFilter(
         allConstraints,
-        c => c.tag !== 'TypeVar' || paramTypeVarIds.indexOf(c._id) === 0
+        (c, varName) => paramNames.indexOf(varName) === -1
       )
 
       // For final type, pull out of substitution-applied constraints.
