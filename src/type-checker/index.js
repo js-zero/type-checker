@@ -5,18 +5,18 @@
 'use strict'
 
 var ESTraverse   = require('estraverse')
-var Scope        = require('./lib/scope')
-var Errors       = require('./lib/type-errors')
+var Scope        = require('./scope')
+var Errors       = require('./type-errors')
 
-var Env     = require('./lib/environment')
-var Typing  = require('./lib/typing')
-var t      = require('./types')
+var Env     = require('./environment')
+var Typing  = require('./typing')
+var t      = require('../types')
 
 var util = require('util')
 var inspect = function (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }
-var fail = require('./lib/assert').fail
+var fail = require('./assert').fail
 
-var utilLib = require('./lib/util')
+var utilLib = require('../util')
 var flattenOneLevel = utilLib.flattenOneLevel
 var pushAll         = utilLib.pushAll
 var extend          = utilLib.extend

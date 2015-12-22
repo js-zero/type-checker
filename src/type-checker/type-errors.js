@@ -1,5 +1,5 @@
 var util = require('util')
-var u    = require('./util')
+var u    = require('../util')
 var t    = require('../types')
 
 exports.TypeError = function TypeError (env, leftType, rightType) {

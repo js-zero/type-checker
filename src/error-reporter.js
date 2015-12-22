@@ -1,3 +1,9 @@
+//
+// Plain-text error reporter
+//
+// If you would like to make something fancier,
+// you should publish it as a separate package.
+//
 var fs = require('fs')
 var pretty = require('./pretty')
 

@@ -1,8 +1,8 @@
 var test = require('tape')
 
 var types       = require(__src + '/types.js')
-var typeCheck   = require(__src + '/type-checker.js').typeCheck
-var Errors      = require(__src + '/lib/type-errors.js')
+var typeCheck   = require(__src + '/type-checker').typeCheck
+var Errors      = require(__src + '/type-checker/type-errors')
 
 
 test('Incongruent array literal', (assert) => {

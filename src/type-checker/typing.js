@@ -1,5 +1,5 @@
 var t = require('../types')
-var objMap = require('./util').objMap
+var objMap = require('../util').objMap
 //
 // Typings
 //

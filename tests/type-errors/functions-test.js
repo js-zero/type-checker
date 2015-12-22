@@ -1,8 +1,8 @@
 var test = require('tape')
 
 var t          = require(__src + '/types.js')
-var Errors     = require(__src + '/lib/type-errors.js')
-var typeCheck  = require(__src + '/type-checker.js').typeCheck
+var Errors     = require(__src + '/type-checker/type-errors')
+var typeCheck  = require(__src + '/type-checker').typeCheck
 
 
 test('Parameter Mismatch', (assert) => {
