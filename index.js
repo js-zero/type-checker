@@ -8,20 +8,17 @@ exports.typeCheckFile = function (file) {
 
   var ast = esprima.parse(source, {
     loc: true,
-    source: 'subject.js',
+    source: file,
     comment: true
   })
 
   var TypeChecker = require('./src/type-checker')
   var env = TypeChecker.typeCheck(ast)
 
-  if (env === false) {
-    console.log("Type errors present.")
-  }
-  else {
-    console.log("\nInferred the following:\n")
+  if (env !== false) {
+    console.log("\n  I have inferred the following types:\n")
     console.log(pretty.env(env))
-    console.log("No type errors found :)")
+    console.log("  No type errors were found in your code. Great job!\n")
   }
 
 }
