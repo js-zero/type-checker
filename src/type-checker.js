@@ -1,7 +1,9 @@
-'use strict'
 /*
- * Great thanks to http://cs.brown.edu/courses/cs173/2012/book/types.html
+ * Implementation of "Compositional Type Checking" by Georgö Érdi
+ * Download the whitepaper PDF at http://gergo.erdi.hu/projects/tandoori/
  */
+'use strict'
+
 var ESTraverse = require('estraverse')
 var Scope = require('./lib/scope')
 var ErrorReporter = require('./error-reporter')
@@ -20,6 +22,7 @@ var pushAll         = utilLib.pushAll
 var extend          = utilLib.extend
 var objMap          = utilLib.objMap
 var objFilter       = utilLib.objFilter
+
 
 exports.typeCheck = function (ast, scopes) {
 
