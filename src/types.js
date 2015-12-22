@@ -1,5 +1,3 @@
-var extend = require('./lib/util').extend
-
 exports.eq = eq
 exports.posNode = posNode
 exports.substitute = substitute
@@ -80,8 +78,6 @@ function arrayEq (a, b) {
   return true
 }
 
-
-
 function substitute (sub, type) {
   if ( type.tag === 'TermArrow' ) {
     return exports.TermArrow(
@@ -109,7 +105,7 @@ function freshTypeVar (cache, type) {
     return exports.TermArrow(
       type.source,
       type.domain.map( term => freshTypeVar(cache, term) ),
-      freshTypeVar( cache, type.range() )
+      freshTypeVar( cache, type.range )
     )
   }
   else {

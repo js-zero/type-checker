@@ -8,7 +8,6 @@ var ErrorReporter = require('./error-reporter')
 
 var Env     = require('./lib/environment')
 var Typing  = require('./lib/typing')
-var NodeMap = require('./lib/node-map')
 var t      = require('./types')
 
 var util = require('util')
@@ -25,10 +24,9 @@ var objFilter       = utilLib.objFilter
 exports.typeCheck = function (ast, scopes) {
 
   var env = Env(null)
-  var nodeMap = NodeMap()
 
   try {
-    var env_ = buildEnv(nodeMap, env, ast)
+    var env_ = buildEnv(env, ast)
     log("\n----\nGOT environment:", inspect(env_))
     return env_
   }
@@ -40,7 +38,7 @@ exports.typeCheck = function (ast, scopes) {
 }
 
 
-function buildEnv (nodeMap, env, node) {
+function buildEnv (env, node) {
 
   switch(node.type) {
 
@@ -50,7 +48,7 @@ function buildEnv (nodeMap, env, node) {
     case 'Program':
     case 'BlockStatement':
       // Every statement can potentially add to the environment (e.g. `let` statements).
-      node.body.forEach( n => buildEnv(nodeMap, env, n) )
+      node.body.forEach( n => buildEnv(env, n) )
       return env
 
     break; case 'VariableDeclaration':
@@ -70,11 +68,11 @@ function buildEnv (nodeMap, env, node) {
         decl.init._name = decl.id.name
       }
 
-      var typing = inferExpr(nodeMap, env, decl.init)
+      var typing = inferExpr(env, decl.init)
       return env.assign( decl.id.name, typing)
 
     break; case 'ExpressionStatement':
-      return buildEnv(nodeMap, env, node.expression)
+      return buildEnv(env, node.expression)
 
     default:
       throw new Error("Statement not supported: " + node.type)
@@ -83,7 +81,7 @@ function buildEnv (nodeMap, env, node) {
 
 
 
-function inferExpr (nodeMap, env, node) {
+function inferExpr (env, node) {
 
   switch(node.type) {
 
@@ -116,10 +114,10 @@ function inferExpr (nodeMap, env, node) {
       // TODO: Handle binary operators other than +
       //
 
-      var leftTyping = inferExpr(nodeMap, env, node.left)
-      var rightTyping = inferExpr(nodeMap, env, node.right)
+      var leftTyping = inferExpr(env, node.left)
+      var rightTyping = inferExpr(env, node.right)
 
-      var substitutions = unifyMonoEnvs(nodeMap, [
+      var substitutions = unifyMonoEnvs([
         leftTyping.monoEnv,
         rightTyping.monoEnv
       ], [
@@ -178,15 +176,12 @@ function inferExpr (nodeMap, env, node) {
         return typing
       })
 
-      // For later reference
-      node.env = functionEnv
-
       //
       // Γ, Δ' ⊢ E :: 𝞣_0
       // TODO: block bodies with `return` statements
-      // buildEnv(nodeMap, functionEnv, node.body)
+      // buildEnv(functionEnv, node.body)
       //
-      var bodyTyping = inferExpr( nodeMap, functionEnv, node.body )
+      var bodyTyping = inferExpr(functionEnv, node.body)
 
       //
       // Δ_0 = { f :: 𝞣_1 -> ... -> 𝞣_n -> 𝞣_0 }
@@ -203,7 +198,6 @@ function inferExpr (nodeMap, env, node) {
       // Ensure types of params and function body all agree.
       //
       var substitutions = unifyMonoEnvs(
-        nodeMap,
         paramTypings.map( pt => pt.monoEnv ).concat([ bodyTyping.monoEnv ])
       )
 
@@ -234,27 +228,10 @@ function inferExpr (nodeMap, env, node) {
       // For final type, pull out of substitution-applied constraints.
       return Typing( constraints, constraints[node._name] )
 
-
-      //
-      // Construct function type constraint
-      //
-
     break; case 'CallExpression':
       log("> CallExpression")
-      ctx.assignRef(node)
 
-      var constraints = flattenOneLevel(
-        node.arguments.map( arg => traverse(ctx, arg) )
-      )
-
-      return constraints.concat([
-        t.Constraint(
-          ExprOrVar(ctx, node.callee),
-          t.TermArrow( node,
-                       node.arguments.map( a => ExprOrVar(ctx, a) ),
-                       t.TermExpr(node) )
-        )
-      ])
+      // TODO
 
     default:
       throw new Error("Expression not supported: " + node.type)
@@ -265,7 +242,7 @@ function inferExpr (nodeMap, env, node) {
 //
 // [5.4] Unification of typings (p.32)
 //
-function unifyMonoEnvs (nodeMap, monoEnvs, existingConstraints) {
+function unifyMonoEnvs (monoEnvs, existingConstraints) {
   log("-=-=-\n[unifyMono]\n", monoEnvs)
   var varTypeMap = {}
 
@@ -289,10 +266,10 @@ function unifyMonoEnvs (nodeMap, monoEnvs, existingConstraints) {
     })
   )
 
-  return unify(nodeMap, constraints.concat(existingConstraints || []))
+  return unify( constraints.concat(existingConstraints || []) )
 }
 
-function unify (nodeMap, constraints) {
+function unify (constraints) {
   if (constraints.length === 0) return []
 
   var cs = constraints.shift()
@@ -302,7 +279,7 @@ function unify (nodeMap, constraints) {
   log("====Constraints====\n", inspect(constraints))
   if (t.eq(left, right)) {
     log("Unified " + left.tag)
-    return unify(nodeMap, constraints)
+    return unify(constraints)
   }
   else if (right.tag === 'TypeVar' && left.tag !== 'TypeVar') {
     // To simplify the algorithm,
@@ -319,7 +296,7 @@ function unify (nodeMap, constraints) {
 
     case 'TypeVar':
       return [ t.Substitution(cs.left, cs.right) ].concat(
-        unify(nodeMap, substituteConstraints(cs, constraints))
+        unify( substituteConstraints(cs, constraints) )
       )
 
     case 'TermArrow':
@@ -332,7 +309,7 @@ function unify (nodeMap, constraints) {
         )
         log("=> Pushing new constraints from Arrow:", inspect(newConstraints))
         pushAll(constraints, newConstraints)
-        return unify(nodeMap, constraints)
+        return unify(constraints)
       }
 
     case 'TermNum':
@@ -341,14 +318,11 @@ function unify (nodeMap, constraints) {
     case 'TermUndefined':
       if (right.tag === left.tag) {
         log("Unified " + left.tag)
-        return unify(nodeMap, constraints)
+        return unify(constraints)
       }
 
     default:
-      var leftNode = left.source || nodeMap[left._id]
-      var rightNode = right.source || nodeMap[right._id]
-
-      throw { leftNode, leftType: left, rightNode, rightType: right }
+      throw { leftNode: left.source, leftType: left, rightNode: right.source, rightType: right }
   }
 
 }
