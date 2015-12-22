@@ -30,10 +30,14 @@ exports.typeCheck = function (ast, scopes) {
     log("\n----\nGOT environment:", inspect(env_))
     return env_
   }
-  catch (errorContext) {
-    log("ERROR", errorContext)
-    // ErrorReporter.report(ast, errorContext)
-    throw errorContext
+  catch (err) {
+    if (err instanceof ErrorReporter.TypeError) {
+      ErrorReporter.report(ast, env, err)
+      return false
+    }
+    else {
+      throw err
+    }
   }
 }
 
@@ -72,7 +76,7 @@ function buildEnv (env, node) {
       return env.assign( decl.id.name, typing)
 
     break; case 'ExpressionStatement':
-      return buildEnv(env, node.expression)
+      return inferExpr(env, node.expression)
 
     default:
       throw new Error("Statement not supported: " + node.type)
@@ -117,7 +121,7 @@ function inferExpr (env, node) {
       var leftTyping = inferExpr(env, node.left)
       var rightTyping = inferExpr(env, node.right)
 
-      var substitutions = unifyMonoEnvs([
+      var substitutions = unifyMonoEnvs(env, [
         leftTyping.monoEnv,
         rightTyping.monoEnv
       ], [
@@ -135,17 +139,6 @@ function inferExpr (env, node) {
       )
 
       return Typing(constraints, t.TermNum(node))
-
-      // if (leftType.tag === 'TermNum' && leftType.tag === 'TermNum') {
-      //   // TODO: Store types (somewhere?)
-      //   return t.TermNum(node)
-      // }
-      // else if (leftType.tag === 'TermString' && leftType.tag === 'TermString') {
-      //   return t.TermString(node)
-      // }
-      // else {
-      //   fail(`Cannot unify ${leftType.tag} and ${rightType.tag}`)
-      // }
 
     break; case 'ArrowFunctionExpression':
       //
@@ -198,6 +191,7 @@ function inferExpr (env, node) {
       // Ensure types of params and function body all agree.
       //
       var substitutions = unifyMonoEnvs(
+        functionEnv,
         paramTypings.map( pt => pt.monoEnv ).concat([ bodyTyping.monoEnv ])
       )
 
@@ -229,9 +223,56 @@ function inferExpr (env, node) {
       return Typing( constraints, constraints[node._name] )
 
     break; case 'CallExpression':
+      //
+      // [App], p.34
+      //
       log("> CallExpression")
 
-      // TODO
+      //
+      // Γ; Δ_1 ⊢ E :: 𝞣'
+      //
+      var calleeTyping = inferExpr(env, node.callee)
+
+      //
+      // Γ; Δ_2 ⊢ F :: 𝞣''
+      //
+      var argumentTypings = node.arguments.map( a => inferExpr(env, a) )
+
+
+      // α new
+      var callExprType = t.TypeVar(null)
+
+      //
+      // 𝚿 = 𝓤({ Δ_1, Δ_2 }, { 𝞣' ~ 𝞣'' -> α })
+      //
+      var substitutions = unifyMonoEnvs(
+        env,
+        [calleeTyping.monoEnv, argumentTypings.monoEnv],
+        [t.Constraint(
+          calleeTyping.type,
+          t.TermArrow(
+            node,
+            argumentTypings.map( at => at.type ),
+            callExprType
+          )
+        )]
+      )
+
+      //
+      // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
+      //
+      var subAll = (type) =>
+        substitutions.reduce( (ty, sub) => t.substitute(sub, ty), type )
+
+      var constraints = argumentTypings.reduce(
+        (ty, monoEnv) => objMap( monoEnv, subAll ),
+        objMap( calleeTyping.monoEnv, subAll )
+      )
+
+      // 𝞣 = 𝚿α
+      var finalType = subAll(callExprType)
+
+      return Typing( constraints, finalType )
 
     default:
       throw new Error("Expression not supported: " + node.type)
@@ -242,7 +283,7 @@ function inferExpr (env, node) {
 //
 // [5.4] Unification of typings (p.32)
 //
-function unifyMonoEnvs (monoEnvs, existingConstraints) {
+function unifyMonoEnvs (env, monoEnvs, existingConstraints) {
   log("-=-=-\n[unifyMono]\n", monoEnvs)
   var varTypeMap = {}
 
@@ -266,22 +307,16 @@ function unifyMonoEnvs (monoEnvs, existingConstraints) {
     })
   )
 
-  return unify( constraints.concat(existingConstraints || []) )
+  return unify( env, constraints.concat(existingConstraints || []) )
 }
 
-function unify (constraints) {
+function unify (env, constraints) {
   if (constraints.length === 0) return []
 
   var cs = constraints.shift()
   var left = cs.left
   var right = cs.right
-  log("\n\n----\nUnifying", inspect(left), "\nAnd\n", inspect(right))
-  log("====Constraints====\n", inspect(constraints))
-  if (t.eq(left, right)) {
-    log("Unified " + left.tag)
-    return unify(constraints)
-  }
-  else if (right.tag === 'TypeVar' && left.tag !== 'TypeVar') {
+  if (right.tag === 'TypeVar' && left.tag !== 'TypeVar') {
     // To simplify the algorithm,
     // always ensure a present type variable is on the left side.
     var csSwapped = { left: cs.right, right: cs.left }
@@ -291,12 +326,14 @@ function unify (constraints) {
     log("[[[[Swapped]]]]")
   }
 
+  log("\n\n----\nUnifying", inspect(left), "\nAnd\n", inspect(right))
+  log("====Constraints====\n", inspect(constraints))
 
   switch (left.tag) {
 
     case 'TypeVar':
       return [ t.Substitution(cs.left, cs.right) ].concat(
-        unify( substituteConstraints(cs, constraints) )
+        unify( env, substituteConstraints(cs, constraints) )
       )
 
     case 'TermArrow':
@@ -309,7 +346,7 @@ function unify (constraints) {
         )
         log("=> Pushing new constraints from Arrow:", inspect(newConstraints))
         pushAll(constraints, newConstraints)
-        return unify(constraints)
+        return unify(env, constraints)
       }
 
     case 'TermNum':
@@ -318,11 +355,11 @@ function unify (constraints) {
     case 'TermUndefined':
       if (right.tag === left.tag) {
         log("Unified " + left.tag)
-        return unify(constraints)
+        return unify(env, constraints)
       }
 
     default:
-      throw { leftNode: left.source, leftType: left, rightNode: right.source, rightType: right }
+      throw new ErrorReporter.TypeError(env, left, right)
   }
 
 }

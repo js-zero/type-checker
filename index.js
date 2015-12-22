@@ -15,7 +15,13 @@ exports.typeCheckFile = function (file) {
   var TypeChecker = require('./src/type-checker')
   var env = TypeChecker.typeCheck(ast)
 
-  console.log("\nInferred the following:\n")
-  console.log(pretty.env(env))
-  console.log("No type errors found :)")
+  if (env === false) {
+    console.log("Type errors present.")
+  }
+  else {
+    console.log("\nInferred the following:\n")
+    console.log(pretty.env(env))
+    console.log("No type errors found :)")
+  }
+
 }

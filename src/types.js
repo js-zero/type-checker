@@ -8,7 +8,7 @@ exports.Constraint = function (left, right) {
 }
 
 // Debugging
-var includeSource = false
+var includeSource = (process.env.HIDE_SOURCE_NODES && false) || true
 
 // (Fresh) Type Variable
 var varIdCounter = 5000;
