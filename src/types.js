@@ -1,5 +1,4 @@
 exports.eq = eq
-exports.posNode = posNode
 exports.substitute = substitute
 exports.freshTypeVar = freshTypeVar
 
@@ -61,13 +60,6 @@ function eq (a, b) {
   }
 }
 
-
-function posNode (term) {
-  if (term.tag === 'TermExpr') return term.expr
-  if (term.tag === 'TermVar') return term.id
-  if (term.tag === 'TermArrow') return posNode(term.range)
-  else return term.node
-}
 
 function arrayEq (a, b) {
   if (a.length !== b.length) return false
