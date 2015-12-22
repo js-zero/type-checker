@@ -7,7 +7,7 @@
     "jsz": "bin/jsz"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tests/test-runner.js | faucet"
   },
   "author": "Gilbert <gilbertbagrza@gmail.com>",
   "license": "MIT",
@@ -15,7 +15,11 @@
     "esprima": "^2.6.0",
     "estraverse": "^4.1.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "faucet": "0.0.1",
+    "glob": "^6.0.1",
+    "tape": "^4.2.2"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/js-zero/type-checker.git"
