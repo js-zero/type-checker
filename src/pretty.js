@@ -1,3 +1,4 @@
+var u = require('./lib/util')
 
 exports.type = prettyType
 exports.node = prettyNode
@@ -12,7 +13,10 @@ function prettyType (type, options) {
 
     case 'TermArrow':
       var params = type.domain.map(prettyType)
-      return `(${ params.join(',') }) => ${ prettyType(type.range) }`
+      return `(${ params.join(', ') }) => ${ prettyType(type.range) }`
+
+    case 'TermArray':
+      return `Array[${ prettyType(type.elemType, options) }]`
 
     default:
       console.log("Unknown type:", type)
@@ -32,8 +36,17 @@ function prettyNode (node, options) {
     case 'Identifier':
       return `${article ? 'a ' : ''}variable \`${node.name}\``
 
+    case 'ArrowFunctionExpression':
+      return `${article ? 'a ' : ''}function`
+
+    case 'CallExpression':
+      return `${article ? 'a ' : ''}function call with ${ pluralize('argument', node.arguments.length) }`
+
     case 'BinaryExpression':
       return `An expression with binary operator \`${node.operator}\``
+
+    case 'ArrayExpression':
+      return `${article ? 'an ' : ''}array with ${ pluralize('hardcoded element', node.elements.length) }`
 
     default:
       console.log("Unknown node:", node)
@@ -45,7 +58,22 @@ function prettyEnv (env) {
   var output = []
   for (var varName in env.typings) {
     var typing = env.typings[varName]
-    output.push(`    ${ varName }: ${ prettyType(typing.type) }`)
+    var typingStr = `    ${varName}: ${ prettyType(typing.type) }`
+
+    if (process.env.DEBUG_TYPES) {
+      var monoEnv = typing.monoEnv
+      if ( Object.keys(monoEnv).length ) {
+        typingStr += "\n      with mono environment\n"
+        typingStr += Object.keys(monoEnv).map(
+          vname => `        ${vname}: ${ prettyType(monoEnv[vname]) }`
+        ).join('\n')
+      }
+    }
+    output.push(typingStr)
   }
   return output.join('\n')
+}
+
+function pluralize (word, count) {
+  return `${count} ${word}${ count === 1 ? '' : 's'}`
 }

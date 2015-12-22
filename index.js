@@ -23,7 +23,7 @@ exports.typeCheckFile = function (file) {
     result.typeErrors.map( err => ErrorReporter.report(result.env, err) )
   }
   else {
-    console.log("  No type errors were found in your code. Great job!\n")
+    console.log("\n  Your code has no type errors. Great job!\n")
   }
 
 }

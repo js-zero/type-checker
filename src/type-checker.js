@@ -6,7 +6,7 @@
 
 var ESTraverse   = require('estraverse')
 var Scope        = require('./lib/scope')
-var JszTypeError = require('./lib/type-error')
+var Errors       = require('./lib/type-errors')
 
 var Env     = require('./lib/environment')
 var Typing  = require('./lib/typing')
@@ -22,6 +22,8 @@ var pushAll         = utilLib.pushAll
 var extend          = utilLib.extend
 var objMap          = utilLib.objMap
 var objFilter       = utilLib.objFilter
+var findIndex       = utilLib.findIndex
+var identity        = (x) => x
 
 
 exports.typeCheck = function (ast, scopes) {
@@ -30,11 +32,11 @@ exports.typeCheck = function (ast, scopes) {
 
   try {
     buildEnv(env, ast)
-    log("\n----\nGOT environment:", inspect(env_))
+    log("\n----\nGOT environment:", inspect(env))
     return { env: env, typeErrors: [] }
   }
   catch (err) {
-    if (err instanceof JszTypeError) {
+    if (err instanceof Errors.TypeError) {
       // Eventually we want to be able to return multiple type errors in one go
       return { env: env, typeErrors: [err] }
     }
@@ -114,6 +116,36 @@ function inferExpr (env, node) {
       return env.lookup(node.name).instantiate()
 
 
+    break; case 'ArrayExpression':
+      log(`> ArrayExpression (${node.elements.length})`)
+
+      //
+      // Ensure all array elements agree on a single type
+      //
+      var elemType     = t.TypeVar(null)
+      var elemTypings  = node.elements.map( e => inferExpr(env, e) )
+      var elemMonoEnvs = elemTypings.map( et => et.monoEnv )
+
+      var substitutions = unifyMonoEnvs(
+        (err) =>
+          new Errors.ArrayLiteralTypeError(err, env, node, elemTypings),
+        env,
+        elemMonoEnvs,
+        elemTypings.map(
+          et => t.Constraint(elemType, et.type)
+        )
+      )
+
+      var subAll = subAllWith(substitutions)
+
+      var arrayMonoEnv = extend(
+        elemMonoEnvs.map( mEnv => objMap(mEnv, subAll) )
+      )
+
+      return Typing(arrayMonoEnv, t.TermArray(node, subAll(elemType)))
+
+
+
     break; case 'BinaryExpression':
       log("> BinaryExpression", node.operator)
 
@@ -124,17 +156,18 @@ function inferExpr (env, node) {
       var leftTyping = inferExpr(env, node.left)
       var rightTyping = inferExpr(env, node.right)
 
-      var substitutions = unifyMonoEnvs(env, [
-        leftTyping.monoEnv,
-        rightTyping.monoEnv
-      ], [
-        t.Constraint( leftTyping.type, t.TermNum(node.left) ),
-        t.Constraint( rightTyping.type, t.TermNum(node.right) )
-      ])
+      var substitutions = unifyMonoEnvs(
+        identity,
+        env,
+        [ leftTyping.monoEnv, rightTyping.monoEnv ],
+        [
+          t.Constraint( leftTyping.type, t.TermNum(node.left) ),
+          t.Constraint( rightTyping.type, t.TermNum(node.right) )
+        ]
+      )
 
       // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
-      var subAll = (type) =>
-        substitutions.reduce( (ty, sub) => t.substitute(sub, ty), type )
+      var subAll = subAllWith(substitutions)
 
       var constraints = extend(
         objMap( leftTyping.monoEnv, subAll ),
@@ -194,6 +227,7 @@ function inferExpr (env, node) {
       // Ensure types of params and function body all agree.
       //
       var substitutions = unifyMonoEnvs(
+        identity,
         functionEnv,
         paramTypings.map( pt => pt.monoEnv ).concat([ bodyTyping.monoEnv ])
       )
@@ -204,8 +238,7 @@ function inferExpr (env, node) {
       // Apply all substitutions to get the final inferred
       // function mono environment.
       //
-      var subAll = (type) =>
-        substitutions.reduce( (ty, sub) => t.substitute(sub, ty), type )
+      var subAll = subAllWith(substitutions)
 
       // 𝚿Δ_0 ∪ 𝚿Δ'
       var allConstraints = extend(
@@ -243,12 +276,14 @@ function inferExpr (env, node) {
 
 
       // α new
-      var callExprType = t.TypeVar(null)
+      var callExprType = t.TypeVar(node)
 
       //
       // 𝚿 = 𝓤({ Δ_1, Δ_2 }, { 𝞣' ~ 𝞣'' -> α })
       //
       var substitutions = unifyMonoEnvs(
+        (err) =>
+          new Errors.CallTypeError(err, env, node, calleeTyping, argumentTypings),
         env,
         [calleeTyping.monoEnv, argumentTypings.monoEnv],
         [t.Constraint(
@@ -262,20 +297,23 @@ function inferExpr (env, node) {
       )
 
       //
-      // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
+      // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2 ∪ ... ∪ 𝚿Δ_n
+      //     where n = node.arguments.length+1
       //
-      var subAll = (type) =>
-        substitutions.reduce( (ty, sub) => t.substitute(sub, ty), type )
+      // The [App] rule in the paper only handles functions with one argument.
+      // In our case, we need to handle any number of arguments.
+      //
+      var subAll = subAllWith(substitutions)
 
-      var constraints = argumentTypings.reduce(
-        (ty, monoEnv) => objMap( monoEnv, subAll ),
+      var callMonoEnv = argumentTypings.reduce(
+        (monoEnv, typing) => Object.assign(monoEnv, objMap( typing.monoEnv, subAll )),
         objMap( calleeTyping.monoEnv, subAll )
       )
 
       // 𝞣 = 𝚿α
       var finalType = subAll(callExprType)
 
-      return Typing( constraints, finalType )
+      return Typing( callMonoEnv, finalType )
 
     default:
       throw new Error("Expression not supported: " + node.type)
@@ -286,7 +324,7 @@ function inferExpr (env, node) {
 //
 // [5.4] Unification of typings (p.32)
 //
-function unifyMonoEnvs (env, monoEnvs, existingConstraints) {
+function unifyMonoEnvs (typeErrorHandler, env, monoEnvs, existingConstraints) {
   log("-=-=-\n[unifyMono]\n", monoEnvs)
   var varTypeMap = {}
 
@@ -310,7 +348,13 @@ function unifyMonoEnvs (env, monoEnvs, existingConstraints) {
     })
   )
 
-  return unify( env, constraints.concat(existingConstraints || []) )
+  try {
+    return unify( env, constraints.concat(existingConstraints || []) )
+  }
+  catch (err) {
+    if (err instanceof Errors.TypeError) throw typeErrorHandler(err)
+    else                                 throw err
+  }
 }
 
 function unify (env, constraints) {
@@ -362,7 +406,7 @@ function unify (env, constraints) {
       }
 
     default:
-      throw new JszTypeError(env, left, right)
+      throw new Errors.TypeError(env, left, right)
   }
 
 }
@@ -423,6 +467,10 @@ function zip (a, b) {
     results.push([a[i], b[i]])
   }
   return results
+}
+
+function subAllWith (substitutions) {
+  return (type) => substitutions.reduce( (ty, sub) => t.substitute(sub, ty), type )
 }
 
 var log = function () {

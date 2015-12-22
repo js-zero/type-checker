@@ -9,6 +9,10 @@ exports.Constraint = function (left, right) {
 // Debugging
 var includeSource = (process.env.HIDE_SOURCE_NODES && false) || true
 
+exports.withSource = function (source, type) {
+  return Object.assign({}, type, { source: source })
+}
+
 // (Fresh) Type Variable
 var varIdCounter = 5000;
 exports.TypeVar = function (sourceNode) {
@@ -32,7 +36,9 @@ exports.TermUndefined = function (sourceNode) {
 exports.TermArrow = function (sourceNode, domain, range) {
   return { tag: 'TermArrow', domain: domain, range: range, source: includeSource && sourceNode }
 }
-exports.TermPlaceholder = {}
+exports.TermArray = function (sourceNode, elemType) {
+  return { tag: 'TermArray', elemType: elemType, source: includeSource && sourceNode }
+}
 
 // (Term, Term) => Subst
 exports.Substitution = function (variable, subVal) {
@@ -50,16 +56,18 @@ function eq (a, b) {
   else if (a.tag === 'TypeVar') {
     return b.tag === 'TypeVar' && a._id === b._id
   }
+  else if (a.tag === 'TermArray') {
+    return b.tag === 'TermArray' && eq(a.elemType, b.elemType)
+  }
   else if (a.tag === 'TermArrow') {
     return b.tag === 'TermArrow'
         && arrayEq(a.domain.map( p => p._ref ), b.domain.map( p => p._ref ))
         && a.range._ref === b.range._ref
   }
   else {
-    throw Error("Unrecognized type.")
+    throw Error(`Unrecognized type: ${a}`)
   }
 }
-
 
 function arrayEq (a, b) {
   if (a.length !== b.length) return false

@@ -36,10 +36,10 @@ var objMap = require('./util').objMap
 //
 module.exports = Typing
 
-function Typing (constraints, type) {
+function Typing (monoEnv, type) {
   var typing = Object.create(methods)
 
-  typing.monoEnv = constraints || {}
+  typing.monoEnv = monoEnv || {}
   typing.type = type
 
   return typing

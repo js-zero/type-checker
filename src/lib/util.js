@@ -4,7 +4,8 @@ module.exports = {
   flattenOneLevel: flattenOneLevel,
   pushAll: pushAll,
   objMap: objMap,
-  objFilter: objFilter
+  objFilter: objFilter,
+  findIndex: findIndex
 }
 
 var slice = [].slice
@@ -49,4 +50,11 @@ function objFilter (obj, fn) {
     if ( fn(obj[key], key) ) results[key] = obj[key]
   }
   return results
+}
+
+function findIndex (array, fn) {
+  for (var i=0; i < array.length; i++) {
+    if ( fn(array[i]) ) return i
+  }
+  return -1
 }
