@@ -31,9 +31,9 @@ function Env (parent, typings) {
 
 var methods = {}
 
-methods.lookup = function lookup (varName) {
+methods.lookup = function (varName) {
   return this.typings[varName] ||
-         this.parent && lookup(varName, this.parent) ||
+         this.parent && this.parent.lookup(varName) ||
          fail(`Variable \`${varName}\` not in scope.`)
 }
 

@@ -5,17 +5,21 @@ var Errors     = require(__src + '/type-checker/type-errors')
 var typeCheck  = require(__src + '/type-checker').typeCheck
 
 
-test('Parameter Mismatch', (assert) => {
-  var ast = parseAST(' let f = (x) => x + 1; f("hi"); ')
+test('String Template Parameter restrictions', (assert) => {
+  var ast = parseAST(`
+    let inc = (x) => x + 1
+    let exclaim = (x) => \`\${inc(x)}!\`
+    exclaim('nope')
+  `)
   var result = typeCheck(ast)
 
-  assert.ok(result.typeErrors.length === 1)
+  assert.ok(result.typeErrors.length === 1, "An error was correctly detected")
 
   var err = result.typeErrors[0]
   assert.ok( err instanceof Errors.CallTypeError )
 
-  var expectedType = t.TermArrow(null, [t.TermNum()], t.TermNum())
-  assert.ok( err.calleeNode.name === 'f' )
+  var expectedType = t.TermArrow(null, [t.TermNum()], t.TermString())
+  assert.equal( err.calleeNode.name, 'exclaim' )
   assert.ok( t.eq(err.calleeTyping.type, expectedType) )
 
   assert.ok( err.argTypings.length === 1 )

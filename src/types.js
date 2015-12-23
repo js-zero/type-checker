@@ -8,7 +8,7 @@ exports.Constraint = function (left, right) {
 }
 
 // Debugging
-var includeSource = (process.env.HIDE_SOURCE_NODES && false) || true
+var includeSource = process.env.HIDE_SOURCE_NODES ? false : true
 
 exports.withSource = function (source, type) {
   return Object.assign({}, type, { source: source })
@@ -66,7 +66,7 @@ function eq (a, b) {
         && a.range._ref === b.range._ref
   }
   else {
-    throw Error(`Unrecognized type: ${a}`)
+    throw Error(`Unrecognized type: ${ JSON.stringify(a) }`)
   }
 }
 

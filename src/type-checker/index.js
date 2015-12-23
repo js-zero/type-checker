@@ -102,6 +102,32 @@ function inferExpr (env, node) {
       return Typing(null, litTermFromNode(node))
 
 
+    break; case 'TemplateLiteral':
+      //
+      // A TemplateLiteral will always be a string,
+      // so the only thing to do is to ensure
+      // the interpolated expressions are well-typed.
+      //
+      var exprTypings  = node.expressions.map( q => inferExpr(env, q) )
+      var exprMonoEnvs = exprTypings.map( ty => ty.monoEnv )
+
+      var substitutions = unifyMonoEnvs(
+        _.identity,
+        env,
+        exprMonoEnvs
+      )
+
+      //
+      // Combine monoEnv constraints to bubble them up the AST.
+      //
+      var monoEnv = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        exprMonoEnvs
+      )
+
+
+      return Typing(monoEnv, t.TermString(node))
+
     break; case 'Identifier':
       log("> Identifier", node.name)
 
@@ -210,8 +236,11 @@ function inferExpr (env, node) {
       //
       // Build mono environment with only function as a constraint.
       //
-      var paramTypes = paramTypings.map( pt => pt.type )
-      var functionType = t.TermArrow( node, paramTypes, bodyTyping.type )
+      var functionType = t.TermArrow(
+        node,
+        paramTypings.map( pt => pt.type ),
+        bodyTyping.type
+      )
       var functionMonoEnv = { [node._name]: functionType }
 
       //
@@ -273,11 +302,12 @@ function inferExpr (env, node) {
       //
       // 𝚿 = 𝓤({ Δ_1, Δ_2 }, { 𝞣' ~ 𝞣'' -> α })
       //
+      var monoEnvs = argumentTypings.map( at => at.monoEnv ).concat([calleeTyping.monoEnv])
       var substitutions = unifyMonoEnvs(
         (err) =>
           new Errors.CallTypeError(err, env, node, calleeTyping, argumentTypings),
         env,
-        [calleeTyping.monoEnv, argumentTypings.monoEnv],
+        monoEnvs,
         [t.Constraint(
           calleeTyping.type,
           t.TermArrow(
@@ -297,7 +327,7 @@ function inferExpr (env, node) {
       //
       var callMonoEnv = Typing.substituteAndAggregateMonoEnvs(
         substitutions,
-        argumentTypings.concat([calleeTyping.monoEnv])
+        monoEnvs
       )
 
       // 𝞣 = 𝚿α
