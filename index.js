@@ -20,7 +20,12 @@ exports.typeCheckFile = function (file) {
 
   if (result.typeErrors.length) {
     var ErrorReporter = require('./src/error-reporter')
-    result.typeErrors.map( err => ErrorReporter.report(result.env, err) )
+    console.log(`\n  However, I found ${ pretty.pluralize('error', result.typeErrors.length) } in your code:`)
+    console.log(
+      result.typeErrors
+        .map( err => ErrorReporter.report(result.env, err) )
+        .join('\n-=-=-=-=--=-=-=-\n')
+    )
   }
   else {
     console.log("\n  Your code has no type errors. Great job!\n")

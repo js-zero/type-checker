@@ -36,11 +36,11 @@ exports.CallTypeError = function CallTypeError (err, env, node, calleeTyping, ar
 util.inherits(exports.CallTypeError, exports.TypeError)
 
 
-exports.ArrayLiteralTypeError = function ArrayLiteralTypeError (err, env, node, elemTypes) {
+exports.ArrayLiteralTypeError = function ArrayLiteralTypeError (err, env, node, elemTypings) {
 
   Error.captureStackTrace(this, this.constructor)
   this.name = 'ArrayLiteralTypeError'
   this.node = node
-  this.elemTypes = elemTypes
+  this.elemTypings = elemTypings
 }
 util.inherits(exports.ArrayLiteralTypeError, exports.TypeError)

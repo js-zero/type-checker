@@ -14,10 +14,10 @@ test('Incongruent array literal', (assert) => {
 
   var err = result.typeErrors[0]
   assert.ok( err instanceof Errors.ArrayLiteralTypeError )
-  assert.ok( err.elemTypes.length === 3, "All element types should be included" )
-  assert.ok( err.elemTypes[0].type.tag === 'TermNum' )
-  assert.ok( err.elemTypes[1].type.tag === 'TermNum' )
-  assert.ok( err.elemTypes[2].type.tag === 'TermString' )
+  assert.ok( err.elemTypings.length === 3, "All element types should be included" )
+  assert.ok( err.elemTypings[0].type.tag === 'TermNum' )
+  assert.ok( err.elemTypings[1].type.tag === 'TermNum' )
+  assert.ok( err.elemTypings[2].type.tag === 'TermString' )
 
   assert.end()
 });
