@@ -7,7 +7,7 @@
     "jsz": "bin/jsz"
   },
   "scripts": {
-    "test": "node tests/test-runner.js | faucet"
+    "test": "./bin/run-tests.sh"
   },
   "author": "Gilbert <gilbertbagrza@gmail.com>",
   "license": "MIT",
