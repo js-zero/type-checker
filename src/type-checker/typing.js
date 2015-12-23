@@ -45,6 +45,16 @@ function Typing (monoEnv, type) {
   return typing
 }
 
+Typing.substituteAndAggregateMonoEnvs = function (substitutions, monoEnvs) {
+  return monoEnvs.reduce(
+    (combinedMonoEnv, mEnv) => Object.assign(
+      combinedMonoEnv,
+      _.mapValues( mEnv, type => t.applySubs(substitutions, type) )
+    ),
+    {}
+  )
+}
+
 var methods = {}
 
 // Basically makes a copy, with all type variables as fresh

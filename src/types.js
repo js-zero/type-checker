@@ -1,5 +1,6 @@
 exports.eq = eq
-exports.substitute = substitute
+exports.substitute   = substitute
+exports.applySubs    = applySubs
 exports.freshTypeVar = freshTypeVar
 
 exports.Constraint = function (left, right) {
@@ -94,6 +95,11 @@ function substitute (sub, type) {
     return type
   }
 }
+
+function applySubs (substitutions, type) {
+  return substitutions.reduce( (ty, sub) => substitute(sub, ty), type )
+}
+
 
 function freshTypeVar (cache, type) {
   if ( type.tag === 'TypeVar' ) {

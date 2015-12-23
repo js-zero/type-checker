@@ -2,7 +2,7 @@
 
 *Current status: Prototype*
 
-See the [aspiring docs] for a vision of what JS Zero wants to be.
+See the [aspiring docs](https://github.com/js-zero/docs) for a vision of what JS Zero wants to be.
 
 ## Usage
 

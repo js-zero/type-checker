@@ -129,14 +129,15 @@ function inferExpr (env, node) {
         )
       )
 
-      var subAll = subAllWith(substitutions)
-
-      var arrayMonoEnv = _.extend(
-        {},
-        elemMonoEnvs.map( mEnv => _.mapValues(mEnv, subAll) )
+      var arrayMonoEnv = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        elemMonoEnvs
       )
 
-      return Typing(arrayMonoEnv, t.TermArray(node, subAll(elemType)))
+      return Typing(
+        arrayMonoEnv,
+        t.TermArray(node, t.applySubs(substitutions, elemType))
+      )
 
 
 
@@ -161,14 +162,12 @@ function inferExpr (env, node) {
       )
 
       // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
-      var subAll = subAllWith(substitutions)
-
-      var constraints = _.extend(
-        _.mapValues( leftTyping.monoEnv, subAll ),
-        _.mapValues( rightTyping.monoEnv, subAll )
+      var monoEnv = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        [leftTyping.monoEnv, rightTyping.monoEnv]
       )
 
-      return Typing(constraints, t.TermNum(node))
+      return Typing(monoEnv, t.TermNum(node))
 
     break; case 'ArrowFunctionExpression':
       //
@@ -232,25 +231,24 @@ function inferExpr (env, node) {
       // Apply all substitutions to get the final inferred
       // function mono environment.
       //
-      var subAll = subAllWith(substitutions)
 
       // 𝚿Δ_0 ∪ 𝚿Δ'
-      var allConstraints = _.extend(
-        _.mapValues( functionMonoEnv, subAll ),
-        _.mapValues( bodyTyping.monoEnv, subAll )
+      var allConstraints = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        [functionMonoEnv, bodyTyping.monoEnv]
       )
 
       // \ U[ i=1..n; dom( Δ_i ) ]
       // Each param typing type should be a type variable.
       // TODO: Handle destructuring
       var paramNames = node.params.map( p => p.name )
-      var constraints = _.omit(
+      var finalMonoEnv = _.omit(
         allConstraints,
         (c, varName) => _.includes(paramNames, varName)
       )
 
-      // For final type, pull out of substitution-applied constraints.
-      return Typing( constraints, constraints[node._name] )
+      // For final type, pull out of substitution-applied finalMonoEnv.
+      return Typing( finalMonoEnv, finalMonoEnv[node._name] )
 
     break; case 'CallExpression':
       //
@@ -297,15 +295,13 @@ function inferExpr (env, node) {
       // The [App] rule in the paper only handles functions with one argument.
       // In our case, we need to handle any number of arguments.
       //
-      var subAll = subAllWith(substitutions)
-
-      var callMonoEnv = argumentTypings.reduce(
-        (monoEnv, typing) => Object.assign(monoEnv, _.mapValues( typing.monoEnv, subAll )),
-        _.mapValues( calleeTyping.monoEnv, subAll )
+      var callMonoEnv = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        argumentTypings.concat([calleeTyping.monoEnv])
       )
 
       // 𝞣 = 𝚿α
-      var finalType = subAll(callExprType)
+      var finalType = t.applySubs(substitutions, callExprType)
 
       return Typing( callMonoEnv, finalType )
 
@@ -453,10 +449,6 @@ function litTermFromNode (node) {
     case 'string': return t.TermString(node)
   }
   fail("No such type from literal: " + node.value)
-}
-
-function subAllWith (substitutions) {
-  return (type) => substitutions.reduce( (ty, sub) => t.substitute(sub, ty), type )
 }
 
 var log = function () {
