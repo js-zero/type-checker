@@ -4,8 +4,10 @@
 // If you would like to make something fancier,
 // you should publish it as a separate package.
 //
-var _ = require('lodash')
-var fs = require('fs')
+'use strict'
+var _      = require('lodash')
+var fs     = require('fs')
+var chalk  = require('chalk')
 var pretty = require('./pretty')
 
 exports.report = function (env, typeErr) {
@@ -20,8 +22,8 @@ reporters.TypeError = function (env, err) {
   var leftNode  = typeErr.leftNode
   var rightNode = typeErr.rightNode
 
-  var lpt = pretty.type(leftType)
-  var rpt = pretty.type(rightType)
+  var lpt = pretty.typeC(leftType)
+  var rpt = pretty.typeC(rightType)
 
   return `
   Your code has a type mismatch between \`${lpt}\` and \`${rpt}\`:
@@ -52,7 +54,7 @@ reporters.CallTypeError = function (env, err) {
   var badArgTyping = err.argTypings[err.badArgIndex]
 
   var together = `
-      Together their types are: (${ err.argTypings.map( a => pretty.type(a.type) ) })`
+      Together their types are: (${ err.argTypings.map( a => pretty.typeC(a.type) ) })`
 
   return `
   You are trying to call a function with an argument it cannot handle.
@@ -60,7 +62,7 @@ reporters.CallTypeError = function (env, err) {
   Specifically:
 
     You are calling ${ pretty.node(err.calleeNode) }
-      whose type is: ${ pretty.type(err.calleeTyping.type) }
+      whose type is: ${ pretty.typeC(err.calleeTyping.type) }
       at ${ lineNo(err.calleeNode.loc) }
       located here:
 
@@ -68,15 +70,15 @@ reporters.CallTypeError = function (env, err) {
     ${ colPointer(err.calleeNode.loc) }
 
     But the arguments' types are mismatched.${ err.argNodes.length >= 2 ? together : '' }
-      Specifically, the ${ pretty.ordinalize(err.badArgIndex+1) } argument is mismatched
-      with its type: ${ pretty.type(badArgTyping.type) }
+    Namely, the ${ pretty.ordinalize(err.badArgIndex+1) } argument has type: ${ pretty.typeC(badArgTyping.type) }
+      when it ${ chalk.underline('should') } have type: ${ pretty.typeC( err.calleeTyping.type.domain[err.badArgIndex] ) }
       at ${ lineNo(badArgNode.loc) }
       located here:
 
     ${ fileSource(badArgNode.loc) }
     ${ colPointer(badArgNode.loc) }
 
-  The arguments are incompatible with the function; please adjust your code accordingly.
+  This is an incompatible function call; please adjust your code accordingly.
 `
 
 }
@@ -87,7 +89,7 @@ reporters.ArrayLiteralTypeError = function (env, err) {
   var typingGroups = err.elemTypings.reduce(function (types, typing, i) {
     typing.source = err.node.elements[i]
 
-    var key = pretty.type(typing.type)
+    var key = pretty.typeC(typing.type)
     types[key] || (types[key] = [])
     types[key].push(typing)
     return types

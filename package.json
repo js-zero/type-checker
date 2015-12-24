@@ -12,6 +12,7 @@
   "author": "Gilbert <gilbertbagrza@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "chalk": "^1.1.1",
     "esprima": "^2.6.0",
     "estraverse": "^4.1.0",
     "lodash": "^3.10.1"

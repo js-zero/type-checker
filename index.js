@@ -1,4 +1,5 @@
 var fs      = require('fs')
+var chalk   = require('chalk')
 var esprima = require('esprima')
 var pretty  = require('./src/pretty')
 
@@ -16,11 +17,11 @@ exports.typeCheckFile = function (file) {
   var result = TypeChecker.typeCheck(ast)
 
   console.log("\n  I have inferred the following types:\n")
-  console.log(pretty.env(result.env))
+  console.log(pretty.envC(result.env))
 
   if (result.typeErrors.length) {
     var ErrorReporter = require('./src/error-reporter')
-    console.log(`\n  However, I found ${ pretty.pluralize('error', result.typeErrors.length) } in your code:`)
+    console.log(`\n  However, I found ${ chalk.red.underline( pretty.pluralize('error', result.typeErrors.length) ) } in your code:`)
     console.log(
       result.typeErrors
         .map( err => ErrorReporter.report(result.env, err) )

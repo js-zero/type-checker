@@ -1,37 +1,56 @@
+var _ = require('lodash')
+var chalk  = require('chalk')
 
-exports.type = prettyType
 exports.node = prettyNode
+
+exports.type  = prettyType
+exports.typeC = prettyTypeColors
+
 exports.env  = prettyEnv
+exports.envC = prettyEnvColors
+
 exports.pluralize  = pluralize
 exports.capitalize = capitalize
 exports.ordinalize = ordinalize
 
+var defaultColorOptions = {
+  markType:    str => chalk.blue(str),
+  markTypeVar: str => chalk.magenta(str),
+}
+
 function prettyType (type, options) {
+  options || (options = {})
+  var markType = options.markType || _.identity
+
   switch (type.tag) {
     case 'TermString':
-      return 'String'
+      return markType('String')
     case 'TermNum':
-      return 'Number'
+      return markType('Number')
 
     case 'TermArrow':
-      options || (options = {})
       options.typeVars || (options.typeVars = {})
-      var params = type.domain.map( ty => prettyType(ty, options) )
-      return `(${ params.join(', ') }) => ${ prettyType(type.range) }`
+      var domainStr = type.domain.map( ty => prettyType(ty, options) ).join(', ')
+      return `(${ domainStr }) => ${ prettyType(type.range, options) }`
 
     case 'TermArray':
-      return `Array[${ prettyType(type.elemType, options) }]`
+      var typeStr = markType('Array')
+      var subtypeStr = prettyType(type.elemType, options)
+      return `${ typeStr }[${ subtypeStr }]`
 
     case 'TypeVar':
-      options || (options = {})
       options.typeVars || (options.typeVars = {})
       options.typeVars[ type._id ] = alphabet[ Object.keys(options.typeVars).length ]
-      return options.typeVars[ type._id ]
+      return (options.markTypeVar || _.identity)( options.typeVars[ type._id ] )
 
     default:
       console.log("Unknown type:", type)
       return `${type.tag}::${type._id}`
   }
+}
+
+function prettyTypeColors (type) {
+  return prettyType(type, defaultColorOptions)
 }
 
 function prettyNode (node) {
@@ -62,24 +81,28 @@ function prettyNode (node) {
   }
 }
 
-function prettyEnv (env) {
+function prettyEnv (env, options) {
   var output = []
   for (var varName in env.typings) {
     var typing = env.typings[varName]
-    var typingStr = `    ${varName}: ${ prettyType(typing.type) }`
+    var typingStr = `    ${varName}: ${ prettyType(typing.type, options) }`
 
     if (process.env.DEBUG_TYPES) {
       var monoEnv = typing.monoEnv
       if ( Object.keys(monoEnv).length ) {
         typingStr += "\n      with mono environment\n"
         typingStr += Object.keys(monoEnv).map(
-          vname => `        ${vname}: ${ prettyType(monoEnv[vname]) }`
+          vname => `        ${vname}: ${ prettyType(monoEnv[vname], options) }`
         ).join('\n')
       }
     }
     output.push(typingStr)
   }
   return output.join('\n')
+}
+
+function prettyEnvColors (env) {
+  return prettyEnv(env, defaultColorOptions)
 }
 
 function pluralize (word, count) {
