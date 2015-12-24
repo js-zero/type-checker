@@ -70,7 +70,8 @@ reporters.CallTypeError = function (env, err) {
     ${ colPointer(err.calleeNode.loc) }
 
     But the arguments' types are mismatched.${ err.argNodes.length >= 2 ? together : '' }
-    Namely, the ${ pretty.ordinalize(err.badArgIndex+1) } argument has type: ${ pretty.typeC(badArgTyping.type) }
+    Namely, the ${ pretty.ordinalize(err.badArgIndex+1) } argument is ${ pretty.node(badArgNode) }
+      that has type: ${ pretty.typeC(badArgTyping.type) }
       when it ${ chalk.underline('should') } have type: ${ pretty.typeC( err.calleeTyping.type.domain[err.badArgIndex] ) }
       at ${ lineNo(badArgNode.loc) }
       located here:

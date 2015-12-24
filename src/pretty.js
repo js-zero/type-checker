@@ -40,7 +40,9 @@ function prettyType (type, options) {
 
     case 'TypeVar':
       options.typeVars || (options.typeVars = {})
-      options.typeVars[ type._id ] = alphabet[ Object.keys(options.typeVars).length ]
+      if ( ! options.typeVars[ type._id ] ) {
+        options.typeVars[ type._id ] = alphabet[ Object.keys(options.typeVars).length ]
+      }
       return (options.markTypeVar || _.identity)( options.typeVars[ type._id ] )
 
     default:
@@ -49,8 +51,8 @@ function prettyType (type, options) {
   }
 }
 
-function prettyTypeColors (type) {
-  return prettyType(type, defaultColorOptions)
+function prettyTypeColors (type, options) {
+  return prettyType(type, Object.assign(options || {}, defaultColorOptions))
 }
 
 function prettyNode (node) {
@@ -102,7 +104,7 @@ function prettyEnv (env, options) {
 }
 
 function prettyEnvColors (env) {
-  return prettyEnv(env, defaultColorOptions)
+  return prettyEnv(env, Object.assign({}, defaultColorOptions))
 }
 
 function pluralize (word, count) {
