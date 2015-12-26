@@ -1,6 +1,6 @@
 var test = require('tape')
 
-var t      = require(__src + '/types.js')
+var t      = require(__src + '/types')
 var pretty = require(__src + '/pretty.js')
 
 

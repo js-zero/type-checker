@@ -58,12 +58,19 @@ Typing.substituteAndAggregateMonoEnvs = function (substitutions, monoEnvs) {
 var methods = {}
 
 // Basically makes a copy, with all type variables as fresh
-methods.instantiate = function () {
-  var cache = {}
+methods.instantiate = function (cache) {
+  cache || (cache = {})
   var fresh = (ty) => t.freshTypeVar(cache, ty)
 
   return Typing(
-    _.mapValues(this.monoEnv, fresh ),
+    _.mapValues( this.monoEnv, fresh ),
     fresh( this.type )
+  )
+}
+
+methods.substitute = function (sub) {
+  return Typing(
+    _.mapValues( this.monoEnv, ty => t.substitute(sub, ty) ),
+    t.substitute( sub, this.type )
   )
 }

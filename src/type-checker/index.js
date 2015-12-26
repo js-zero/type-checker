@@ -335,6 +335,55 @@ function inferExpr (env, node) {
 
       return Typing( callMonoEnv, finalType )
 
+    break; case 'ObjectExpression':
+      log("> ObjectExpression")
+      // JS Zero types objects as records
+      var seenLabels = {}
+
+      // TODO: Occurs check
+      var rowTypings = {}
+      var rowTypingMonoEnvs = []
+
+      node.properties.forEach(function(prop) {
+        if ( prop.key.type !== 'Identifier' && prop.key.type !== 'Literal' ) {
+          // TODO: Better error message
+          fail(`Only literals are allowed for object keys`)
+        }
+
+        var label = '' + (prop.key.type === 'Identifier') ? prop.key.name : prop.key.value
+
+        if ( seenLabels[label] ) {
+          // TODO: Better error message
+          fail(`Duplicate object label: ${label}`)
+        }
+        else seenLabels[label] = true
+
+        var propTyping = inferExpr(env, prop.value)
+        rowTypingMonoEnvs.push( propTyping.monoEnv )
+        rowTypings[label] = propTyping
+      })
+
+      var substitutions = unifyMonoEnvs(
+        _.identity,
+        env,
+        rowTypingMonoEnvs
+      )
+
+      //
+      // Combine monoEnv constraints to bubble them up the AST.
+      //
+      var monoEnv = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        rowTypingMonoEnvs
+      )
+
+
+      return Typing(
+        monoEnv,
+        t.Record(node, rowTypings, null)
+      )
+
+
     default:
       throw new Error("Expression not supported: " + node.type)
   }
@@ -451,7 +500,7 @@ function substituteConstraints (sub, constraints) {
     }
     else if (c.right.tag === 'TermArrow') {
       c.right.domain = c.right.domain.map(function(term) {
-        log("  [sub][arrow] checking against", term.tag, term._id)
+        log("  [sub][arrow] checking against", term.tag, term._id || '')
         if (t.eq(term, sub.left)) {
           log("! [sub][arrow] Replacing", term, "with", sub.right)
           return sub.right
@@ -459,7 +508,7 @@ function substituteConstraints (sub, constraints) {
         else return term
       })
       var range = c.right.range
-      log("  [sub][arrow] checking range against", range.tag, range._id)
+      log("  [sub][arrow] checking range against", range.tag, range._id || '')
       if (t.eq(range, sub.left)) {
         log("! [sub][arrow] Replacing range", range, "with", sub.right)
         c.right.range = sub.right

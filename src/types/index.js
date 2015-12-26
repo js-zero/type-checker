@@ -1,3 +1,6 @@
+var _       = require('lodash')
+var Record  = require('./records')
+
 exports.eq = eq
 exports.substitute   = substitute
 exports.applySubs    = applySubs
@@ -20,6 +23,10 @@ exports.TypeVar = function (sourceNode) {
   varIdCounter += 1
   return { tag: 'TypeVar', source: includeSource && sourceNode, _id: varIdCounter }
 }
+
+// Re-export record types
+exports.Record = Record
+exports.RowTypeVar = Record.RowTypeVar
 
 // Concrete types
 exports.TermNum = function (sourceNode) {
@@ -57,6 +64,9 @@ function eq (a, b) {
   else if (a.tag === 'TypeVar') {
     return b.tag === 'TypeVar' && a._id === b._id
   }
+  else if (a.tag === 'RowTypeVar') {
+    return b.tag === 'RowTypeVar' && a._id === b._id
+  }
   else if (a.tag === 'TermArray') {
     return b.tag === 'TermArray' && eq(a.elemType, b.elemType)
   }
@@ -64,6 +74,9 @@ function eq (a, b) {
     return b.tag === 'TermArrow'
         && arrayEq(a.domain.map( p => p._ref ), b.domain.map( p => p._ref ))
         && a.range._ref === b.range._ref
+  }
+  else if (a.tag === 'Record') {
+    return b.tag === 'Record' && Record.isEq(eq, a, b)
   }
   else {
     throw Error(`Unrecognized type: ${ JSON.stringify(a) }`)
@@ -80,11 +93,20 @@ function arrayEq (a, b) {
 }
 
 function substitute (sub, type) {
+  if ( ! type ) return type
+
   if ( type.tag === 'TermArrow' ) {
     return exports.TermArrow(
       type.source,
       type.domain.map( term => substitute(sub, term) ),
       substitute( sub, type.range )
+    )
+  }
+  else if ( type.tag === 'Record' ) {
+    return Record(
+      type.source,
+      _.mapValues( type.rows, typing => typing.substitute(sub) ),
+      substitute( sub, type.polyVar )
     )
   }
   else if ( eq(sub.left, type) ) {
@@ -102,9 +124,17 @@ function applySubs (substitutions, type) {
 
 
 function freshTypeVar (cache, type) {
+  if ( ! type ) return type
+
   if ( type.tag === 'TypeVar' ) {
     if ( ! cache[type._id] ) {
       cache[type._id] = exports.TypeVar(type.source)
+    }
+    return cache[type._id]
+  }
+  else if ( type.tag === 'RowTypeVar' ) {
+    if ( ! cache[type._id] ) {
+      cache[type._id] = Record.RowTypeVar(type.source)
     }
     return cache[type._id]
   }
@@ -113,6 +143,13 @@ function freshTypeVar (cache, type) {
       type.source,
       type.domain.map( term => freshTypeVar(cache, term) ),
       freshTypeVar( cache, type.range )
+    )
+  }
+  else if ( type.tag === 'Record' ) {
+    return Record(
+      type.source,
+      _.mapValues( type.rows, typing => typing.instantiate(cache) ),
+      freshTypeVar(cache, type.polyVar)
     )
   }
   else {

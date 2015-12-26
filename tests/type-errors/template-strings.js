@@ -1,6 +1,6 @@
 var test = require('tape')
 
-var t          = require(__src + '/types.js')
+var t          = require(__src + '/types')
 var Errors     = require(__src + '/type-checker/type-errors')
 var typeCheck  = require(__src + '/type-checker').typeCheck
 

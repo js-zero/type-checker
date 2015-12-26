@@ -39,11 +39,25 @@ function prettyType (type, options) {
       return `${ typeStr }[${ subtypeStr }]`
 
     case 'TypeVar':
+    case 'RowTypeVar':
+
       options.typeVars || (options.typeVars = {})
       if ( ! options.typeVars[ type._id ] ) {
         options.typeVars[ type._id ] = alphabet[ Object.keys(options.typeVars).length ]
       }
-      return (options.markTypeVar || _.identity)( options.typeVars[ type._id ] )
+
+      var letterName = options.typeVars[ type._id ] +
+        (process.env.DEBUG_TYPES
+                ? `.${type.tag.replace('TypeVar', '')}${type._id-5000}`
+                : '')
+
+      return (options.markTypeVar || _.identity)( letterName )
+
+    case 'Record':
+      var pairs = _.map( type.rows, (typing, label) => `${label}: ${prettyType(typing.type, options)}` )
+      if ( type.polyVar ) pairs.push( prettyType(type.polyVar, options) )
+
+      return `{ ${pairs.join(', ')} }`
 
     default:
       console.log("Unknown type:", type)
@@ -77,6 +91,9 @@ function prettyNode (node) {
     case 'ArrayExpression':
       return `an array with ${ pluralize('hardcoded element', node.elements.length) }`
 
+    case 'ObjectExpression':
+      return `an object literal with ${ pluralize('property', node.properties.length) }`
+
     default:
       console.log("Unknown node:", node)
       return node.type
@@ -108,7 +125,10 @@ function prettyEnvColors (env) {
 }
 
 function pluralize (word, count) {
-  return `${count} ${word}${ count === 1 ? '' : 's'}`
+  if ( word[word.length-1] === 'y')
+    return `${count} ${ count === 1 ? word : word.substring(0, word.length-1) + 'ies'}`
+  else
+    return `${count} ${word}${ count === 1 ? '' : 's'}`
 }
 
 function capitalize (str) {
