@@ -26,14 +26,14 @@ function prettyType (type, options) {
     case 'TermString':
       return markType('String')
     case 'TermNum':
-      return markType('Number')
+      return markType('Num')
 
-    case 'TermArrow':
+    case 'Arrow':
       options.typeVars || (options.typeVars = {})
       var domainStr = type.domain.map( ty => prettyType(ty, options) ).join(', ')
       return `(${ domainStr }) => ${ prettyType(type.range, options) }`
 
-    case 'TermArray':
+    case 'ConArray':
       var typeStr = markType('Array')
       var subtypeStr = prettyType(type.elemType, options)
       return `${ typeStr }[${ subtypeStr }]`
@@ -93,6 +93,9 @@ function prettyNode (node) {
 
     case 'ObjectExpression':
       return `an object literal with ${ pluralize('property', node.properties.length) }`
+
+    case 'MemberExpression':
+      return `a object property`
 
     default:
       console.log("Unknown node:", node)

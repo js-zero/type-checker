@@ -14,7 +14,7 @@ test('Parameter Mismatch', (assert) => {
   var err = result.typeErrors[0]
   assert.ok( err instanceof Errors.CallTypeError )
 
-  var expectedType = t.TermArrow(null, [t.TermNum()], t.TermNum())
+  var expectedType = t.Arrow(null, [t.TermNum()], t.TermNum())
   assert.ok( err.calleeNode.name === 'f' )
   assert.ok( t.eq(err.calleeTyping.type, expectedType) )
 

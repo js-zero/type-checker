@@ -83,3 +83,7 @@ How can the type checker know what kind of array this is? Four steps: it must in
 ### More Information
 
 You can find out more information about Georgö Érdi's type system [here](http://gergo.erdi.hu/projects/tandoori/), or directly download the paper [here](http://gergo.erdi.hu/projects/tandoori/Tandoori-Compositional-Typeclass.pdf).
+
+## Development
+
+Make your changes, then run `npm test`. If you are making changes to the annotation grammar, you will want to run `npm run build; npm run test`.

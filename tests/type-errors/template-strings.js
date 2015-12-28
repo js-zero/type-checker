@@ -18,7 +18,7 @@ test('String Template Parameter restrictions', (assert) => {
   var err = result.typeErrors[0]
   assert.ok( err instanceof Errors.CallTypeError )
 
-  var expectedType = t.TermArrow(null, [t.TermNum()], t.TermString())
+  var expectedType = t.Arrow(null, [t.TermNum()], t.TermString())
   assert.equal( err.calleeNode.name, 'exclaim' )
   assert.ok( t.eq(err.calleeTyping.type, expectedType) )
 

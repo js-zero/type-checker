@@ -17,7 +17,7 @@ test('Pretty function types (with type variables)', (assert) => {
   t.TypeVar(); t.TypeVar()
 
 
-  var type = t.TermArrow(null, [a, b], a)
+  var type = t.Arrow(null, [a, b], a)
 
   assert.equal( pretty.type(type), '(a, b) => a' )
   assert.end()

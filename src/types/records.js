@@ -24,6 +24,11 @@ Record.RowTypeVar = function (sourceNode) {
   return { tag: 'RowTypeVar', source: includeSource && sourceNode, _id: varIdCounter }
 }
 
+Record.NamedRowTypeVar = function (name) {
+  varIdCounter += 1
+  return { tag: 'RowTypeVar', name: name, _id: null }
+}
+
 Record.freshTypeVars = function (recurse, cache, record) {
   return _.mapValues(record.rows, recurse)
 }

@@ -29,3 +29,47 @@ test('Incompatible objects', (assert) => {
 
   assert.end()
 });
+
+
+test('Non-existant property', (assert) => {
+
+  var ast = parseAST(`
+    let o  = { x: 1 }
+    let result = o.y
+  `)
+  var result = typeCheck(ast)
+
+  assert.ok(result.typeErrors.length === 1)
+
+  var err = result.typeErrors[0]
+  assert.ok( err instanceof Errors.NoSuchPropertyTypeError )
+
+  assert.equal( err.propertyName, 'y' )
+
+  var expectedType = t.Record(null, { x: Typing({}, t.TermNum()) })
+
+  assert.ok( t.eq(err.objectTyping.type, expectedType) )
+
+  assert.end()
+});
+
+
+test('Accessing a property of a non-object', (assert) => {
+
+  var ast = parseAST(`
+    let str = "hi"
+    let result = str.x
+  `)
+  var result = typeCheck(ast)
+
+  assert.ok(result.typeErrors.length === 1)
+
+  var err = result.typeErrors[0]
+  assert.ok( err instanceof Errors.NotAnObjectTypeError )
+
+  assert.equal( err.propertyName, 'x' )
+
+  assert.ok( t.eq(err.nonObjectTyping.type, t.TermString()) )
+
+  assert.end()
+});

@@ -44,3 +44,27 @@ exports.ArrayLiteralTypeError = function ArrayLiteralTypeError (err, env, node, 
   this.elemTypings = elemTypings
 }
 util.inherits(exports.ArrayLiteralTypeError, exports.TypeError)
+
+
+exports.NoSuchPropertyTypeError = function NoSuchPropertyTypeError (env, node, objTyping, label) {
+
+  Error.captureStackTrace(this, this.constructor)
+  this.name = 'NoSuchPropertyTypeError'
+  this.node = node
+
+  this.objectTyping = objTyping
+  this.propertyName = label
+}
+util.inherits(exports.NoSuchPropertyTypeError, exports.TypeError)
+
+
+exports.NotAnObjectTypeError = function NotAnObjectTypeError (env, node, nonObjTyping, label) {
+
+  Error.captureStackTrace(this, this.constructor)
+  this.name = 'NotAnObjectTypeError'
+  this.node = node
+
+  this.nonObjectTyping = nonObjTyping
+  this.propertyName = label
+}
+util.inherits(exports.NotAnObjectTypeError, exports.TypeError)

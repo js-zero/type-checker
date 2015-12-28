@@ -162,7 +162,7 @@ function inferExpr (env, node) {
 
       return Typing(
         arrayMonoEnv,
-        t.TermArray(node, t.applySubs(substitutions, elemType))
+        t.ConArray(node, t.applySubs(substitutions, elemType))
       )
 
 
@@ -236,7 +236,7 @@ function inferExpr (env, node) {
       //
       // Build mono environment with only function as a constraint.
       //
-      var functionType = t.TermArrow(
+      var functionType = t.Arrow(
         node,
         paramTypings.map( pt => pt.type ),
         bodyTyping.type
@@ -310,7 +310,7 @@ function inferExpr (env, node) {
         monoEnvs,
         [t.Constraint(
           calleeTyping.type,
-          t.TermArrow(
+          t.Arrow(
             node,
             argumentTypings.map( at => at.type ),
             callExprType
@@ -383,6 +383,29 @@ function inferExpr (env, node) {
         t.Record(node, rowTypings, null)
       )
 
+    break; case 'MemberExpression':
+      log("> ObjectExpression")
+      var recordTyping = inferExpr(env, node.object)
+
+      if ( node.property.type !== 'Identifier' ) {
+        // TODO: Better error message (show location in source code)
+        fail(`Only named e.g. (.x) are allowed for object keys`)
+      }
+
+      var label = node.property.name
+
+      if ( recordTyping.type.tag !== 'Record' ) {
+        throw new Errors.NotAnObjectTypeError(env, node, recordTyping, label)
+      }
+
+      var memberTyping = recordTyping.type.rows[label]
+
+      if ( ! memberTyping ) {
+        throw new Errors.NoSuchPropertyTypeError(env, node, recordTyping, label)
+      }
+
+      return memberTyping
+
 
     default:
       throw new Error("Expression not supported: " + node.type)
@@ -452,9 +475,9 @@ function unify (env, constraints) {
         unify( env, substituteConstraints(cs, constraints) )
       )
 
-    case 'TermArrow':
+    case 'Arrow':
 
-      if (right.tag === 'TermArrow') {
+      if (right.tag === 'Arrow') {
         var newConstraints = [
           t.Constraint(left.range, right.range)
         ].concat(
@@ -498,7 +521,7 @@ function substituteConstraints (sub, constraints) {
       log("!.[sub] Replacing", c.right, "with", sub.right)
       return t.Constraint(c.left, sub.right)
     }
-    else if (c.right.tag === 'TermArrow') {
+    else if (c.right.tag === 'Arrow') {
       c.right.domain = c.right.domain.map(function(term) {
         log("  [sub][arrow] checking against", term.tag, term._id || '')
         if (t.eq(term, sub.left)) {
