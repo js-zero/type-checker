@@ -14,9 +14,7 @@ global.parseAST = function (sourceString) {
 
 var t           = require(__src + '/types')
 var pretty      = require(__src + '/pretty')
-var Errors      = require(__src + '/type-checker/type-errors')
 var typeCheck   = require(__src + '/type-checker').typeCheck
-var unifyTypes  = require(__src + '/type-checker/unify').unifyTypes
 var compileType = require(__src + '/type-annotations').compile
 
 
@@ -25,24 +23,18 @@ global.testInference = function (assert, ast, annotations) {
   var result = typeCheck( parseAST(ast) )
   assert.equal( result.typeErrors.length, 0, "No type errors should exist." )
 
-  for (var varName in annotations) {
-    var expectedType = compileType( annotations[varName] )
-    var actualType   = result.env.lookupOrFail(varName).type
+  if (result.typeErrors.length) throw result.typeErrors[0]
 
-    try {
-      unifyTypes( result.env, actualType, expectedType )
-    }
-    catch (err) {
-      if (err instanceof Errors.TypeError) {
-        assert.fail(
-          `Type inference failed for ${varName}.
-           Expected: ${annotations[varName]}
-           Got: ${ pretty.type(actualType) }`
-        )
-      }
-      else {
-        throw err
-      }
+  for (var varName in annotations) {
+    var annotation = compileType( annotations[varName] )
+    var actualType = result.env.lookupOrFail(varName).type
+
+    if ( ! annotation.match(actualType) ) {
+      assert.fail(
+        `Type inference failed for ${varName}.
+       Expected: ${annotations[varName]}
+       Got: ${ pretty.type(actualType) }`
+      )
     }
   }
 

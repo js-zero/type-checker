@@ -8,6 +8,8 @@ exports.substitute   = substitute
 exports.applySubs    = applySubs
 exports.freshTypeVar = freshTypeVar
 
+exports.transform = transform
+
 // Re-export type constructors
 Object.assign(module.exports, t)
 
@@ -20,10 +22,16 @@ function eq (a, b) {
     return b.tag === a.tag
   }
   else if (a.tag === 'TypeVar') {
-    return b.tag === 'TypeVar' && a._id === b._id
+    if (b.tag !== 'TypeVar') return false
+
+    if (a._id !== null && b._id !== null) return a._id === b._id
+    else                                  return matchTypeVars(a, b)
   }
   else if (a.tag === 'RowTypeVar') {
-    return b.tag === 'RowTypeVar' && a._id === b._id
+    if (b.tag !== 'RowTypeVar') return false
+
+    if (a._id !== null && b._id !== null) return a._id === b._id
+    else                                  return matchTypeVars(a, b)
   }
   else if (a.tag === 'Con') {
     return b.tag === 'Con'
@@ -39,6 +47,24 @@ function eq (a, b) {
   }
   else {
     throw Error(`Unrecognized type: ${ JSON.stringify(a) }`)
+  }
+}
+
+// Matching is done when comparing a type annotation to an inferred type
+function matchTypeVars (a, b) {
+  if ( a._id === null && b._id === null ) {
+    return a.name === b.name
+  }
+  else if ( a._id === null ) {
+    a._id = b._id
+    return true
+  }
+  else if ( b._id === null ) {
+    b._id = a._id
+    return true
+  }
+  else {
+    return a._id === b._id
   }
 }
 

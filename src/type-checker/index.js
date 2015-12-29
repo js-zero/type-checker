@@ -94,9 +94,9 @@ function buildEnv (env, node) {
         }
 
         var varName = _.trim(parts[0])
-        var typeAssumption = compileAnnotation( parts[1] )
+        var annotation = compileAnnotation( parts[1] )
 
-        return env.assume( varName, Typing({}, typeAssumption) )
+        return env.assume( varName, Typing({}, annotation.type) )
       }
       else {
         return inferExpr(env, node.expression)

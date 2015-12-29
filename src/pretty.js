@@ -33,10 +33,10 @@ function prettyType (type, options) {
       var domainStr = type.domain.map( ty => prettyType(ty, options) ).join(', ')
       return `(${ domainStr }) => ${ prettyType(type.range, options) }`
 
-    case 'ConArray':
-      var typeStr = markType('Array')
-      var subtypeStr = prettyType(type.elemType, options)
-      return `${ typeStr }[${ subtypeStr }]`
+    case 'Con':
+      var typeStr = markType(type.name)
+      var subtypes = type.args.map( a => prettyType(a, options) )
+      return `${ typeStr }(${ subtypes.join(', ') })`
 
     case 'TypeVar':
     case 'RowTypeVar':
@@ -54,7 +54,7 @@ function prettyType (type, options) {
       return (options.markTypeVar || _.identity)( letterName )
 
     case 'Record':
-      var pairs = _.map( type.rows, (typing, label) => `${label}: ${prettyType(typing.type, options)}` )
+      var pairs = _.map( type.rows, (type, label) => `${label}: ${prettyType(type, options)}` )
       if ( type.polyVar ) pairs.push( prettyType(type.polyVar, options) )
 
       return `{ ${pairs.join(', ')} }`
