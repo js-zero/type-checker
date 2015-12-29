@@ -1,71 +1,15 @@
-var _       = require('lodash')
-var Record  = require('./records')
+var _         = require('lodash')
+var t         = require('./definitions')
+var transform = require('./transform')
+var Record    = require('./records')
 
 exports.eq = eq
 exports.substitute   = substitute
 exports.applySubs    = applySubs
 exports.freshTypeVar = freshTypeVar
 
-exports.Constraint = function (left, right) {
-  return { tag: 'Constraint', left: left, right: right }
-}
-
-// Debugging
-var includeSource = process.env.HIDE_SOURCE_NODES ? false : true
-
-exports.withSource = function (source, type) {
-  return Object.assign({}, type, { source: source })
-}
-
-// (Fresh) Type Variable
-var varIdCounter = 5000;
-exports.TypeVar = function (sourceNode) {
-  varIdCounter += 1
-  return { tag: 'TypeVar', source: includeSource && sourceNode, _id: varIdCounter }
-}
-
-//
-// Any types generated from annotations should specify its source as this.
-//
-exports.ANNOTATION = {}
-
-//
-// A NamedTypeVar will take form of the first type variable it
-// sees in the `eq` algorithm.
-//
-exports.NamedTypeVar = function (name) {
-  return { tag: 'TypeVar', name: name, _id: null }
-}
-
-// Re-export record types
-exports.Record = Record
-exports.RowTypeVar = Record.RowTypeVar
-exports.NamedRowTypeVar = Record.NamedRowTypeVar
-
-// Concrete types
-exports.TermNum = function (sourceNode) {
-  return { tag: 'TermNum', source: includeSource && sourceNode }
-}
-exports.TermBool = function (sourceNode) {
-  return { tag: 'TermBool', source: includeSource && sourceNode }
-}
-exports.TermString = function (sourceNode) {
-  return { tag: 'TermString', source: includeSource && sourceNode }
-}
-exports.TermUndefined = function (sourceNode) {
-  return { tag: 'TermUndefined', source: includeSource && sourceNode }
-}
-exports.Arrow = function (sourceNode, domain, range) {
-  return { tag: 'Arrow', domain: domain, range: range, source: includeSource && sourceNode }
-}
-exports.ConArray = function (sourceNode, elemType) {
-  return { tag: 'Con', name: 'Array', args: [elemType], source: includeSource && sourceNode }
-}
-
-// (Term, Term) => Subst
-exports.Substitution = function (variable, subVal) {
-  return { tag: 'Substitution', left: variable, right: subVal }
-}
+// Re-export type constructors
+Object.assign(module.exports, t)
 
 function eq (a, b) {
   if (a.tag === 'TermNum'
@@ -99,66 +43,42 @@ function eq (a, b) {
 }
 
 function substitute (sub, type) {
-  if ( ! type ) return type
-
-  if ( type.tag === 'Arrow' ) {
-    return exports.Arrow(
-      type.source,
-      type.domain.map( term => substitute(sub, term) ),
-      substitute( sub, type.range )
-    )
-  }
-  else if ( type.tag === 'Record' ) {
-    return Record(
-      type.source,
-      _.mapValues( type.rows, ty => substitute(sub, ty) ),
-      substitute( sub, type.polyVar )
-    )
-  }
-  else if ( eq(sub.left, type) ) {
-    // Retain original source node
-    return Object.assign(sub.right, { source: type.source })
-  }
-  else {
-    return type
-  }
+  return transform(substituteNodes, sub, type)
 }
 
+var attemptSub = (sub, type) =>
+  eq(sub.left, type)
+  ? Object.assign(sub.right, { source: type.source })
+  : type
+
+var substituteNodes = {
+  'TypeVar': attemptSub,
+  'RowTypeVar': attemptSub
+}
+
+
 function applySubs (substitutions, type) {
-  return substitutions.reduce( (ty, sub) => substitute(sub, ty), type )
+  return substitutions.reduce( (ty, sub, i) => substitute(sub, ty), type )
 }
 
 
 function freshTypeVar (cache, type) {
-  if ( ! type ) return type
+  return transform(freshTypeVarNodes, cache, type)
+}
 
-  if ( type.tag === 'TypeVar' ) {
+var freshTypeVarNodes = {
+
+  'TypeVar': function (cache, type) {
     if ( ! cache[type._id] ) {
-      cache[type._id] = exports.TypeVar(type.source)
+      cache[type._id] = t.TypeVar(type.source)
     }
     return cache[type._id]
-  }
-  else if ( type.tag === 'RowTypeVar' ) {
+  },
+
+  'RowTypeVar': function (cache, type) {
     if ( ! cache[type._id] ) {
-      cache[type._id] = Record.RowTypeVar(type.source)
+      cache[type._id] = t.RowTypeVar(type.source)
     }
     return cache[type._id]
-  }
-  else if ( type.tag === 'Arrow' ) {
-    return exports.Arrow(
-      type.source,
-      type.domain.map( term => freshTypeVar(cache, term) ),
-      freshTypeVar( cache, type.range )
-    )
-  }
-  else if ( type.tag === 'Record' ) {
-    return Record(
-      type.source,
-      _.mapValues( type.rows, ty => freshTypeVar(cache, ty) ),
-      freshTypeVar(cache, type.polyVar)
-    )
-  }
-  else {
-    return type
   }
 }
