@@ -48,8 +48,8 @@ module.exports = (function() {
             return type(ANNOTATION)
           },
         peg$c2 = function(name) {
-            if ( ! typeVarNames[name] ) { typeVarNames[name] = t.NamedTypeVar(name) }
-            return typeVarNames[name]
+            if ( ! typeVarsByName[name] ) { typeVarsByName[name] = t.TypeVar(ANNOTATION) }
+            return typeVarsByName[name]
           },
         peg$c3 = "(",
         peg$c4 = { type: "literal", value: "(", description: "\"(\"" },
@@ -91,18 +91,18 @@ module.exports = (function() {
             return t.Record( ANNOTATION, {}, t.NamedRowTypeVar(polyVar) )
           },
         peg$c21 = function(first, pairs, polyVar) {
-            var recordTyping = { [first[0]]: first[1] }
+            var recordType = { [first[0]]: first[1] }
 
             for (var i=0; i < pairs.length; i++) {
               var pair = getLast(pairs[i])
-              recordTyping[ pair[0] ] = pair[1]
+              recordType[ pair[0] ] = pair[1]
             }
-            return t.Record(ANNOTATION, recordTyping, polyVar && getLast(polyVar) || null)
+            return t.Record(ANNOTATION, recordType, polyVar && getLast(polyVar) || null)
           },
         peg$c22 = ":",
         peg$c23 = { type: "literal", value: ":", description: "\":\"" },
         peg$c24 = function(label, type) {
-            return [label, Typing({}, type)]
+            return [label, type]
           },
         peg$c25 = function(polyVar) { return polyVar },
         peg$c26 = { type: "other", description: "Identifier" },
@@ -810,7 +810,7 @@ module.exports = (function() {
           if (s1 !== peg$FAILED) {
             s2 = peg$parse__();
             if (s2 !== peg$FAILED) {
-              s3 = peg$parseLabelTypingPair();
+              s3 = peg$parseLabelAndType();
               if (s3 !== peg$FAILED) {
                 s4 = peg$parse__();
                 if (s4 !== peg$FAILED) {
@@ -828,7 +828,7 @@ module.exports = (function() {
                     if (s8 !== peg$FAILED) {
                       s9 = peg$parse__();
                       if (s9 !== peg$FAILED) {
-                        s10 = peg$parseLabelTypingPair();
+                        s10 = peg$parseLabelAndType();
                         if (s10 !== peg$FAILED) {
                           s7 = [s7, s8, s9, s10];
                           s6 = s7;
@@ -863,7 +863,7 @@ module.exports = (function() {
                       if (s8 !== peg$FAILED) {
                         s9 = peg$parse__();
                         if (s9 !== peg$FAILED) {
-                          s10 = peg$parseLabelTypingPair();
+                          s10 = peg$parseLabelAndType();
                           if (s10 !== peg$FAILED) {
                             s7 = [s7, s8, s9, s10];
                             s6 = s7;
@@ -947,7 +947,7 @@ module.exports = (function() {
       return s0;
     }
 
-    function peg$parseLabelTypingPair() {
+    function peg$parseLabelAndType() {
       var s0, s1, s2, s3, s4, s5;
 
       s0 = peg$currPos;
@@ -1413,8 +1413,7 @@ module.exports = (function() {
       var ANNOTATION = t.ANNOTATION
 
       var pretty = require('../pretty')
-      var Typing = require('../type-checker/typing.js')
-      var typeVarNames = {}
+      var typeVarsByName = {}
 
       function getLast (arr) { return arr[arr.length-1] }
 

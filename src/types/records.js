@@ -79,8 +79,8 @@ function recordEq (eq, a, b) {
   //
   for (var i=0; i < aLabels.length; i++) {
     var isEq = eq(
-      a.rows[ aLabels[i] ].type,
-      b.rows[ bLabels[i] ].type
+      a.rows[ aLabels[i] ],
+      b.rows[ bLabels[i] ]
     )
     if ( ! isEq ) return false
   }

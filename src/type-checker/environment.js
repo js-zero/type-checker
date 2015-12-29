@@ -33,7 +33,11 @@ var methods = {}
 
 methods.lookup = function (varName) {
   return this.typings[varName] ||
-         this.parent && this.parent.lookup(varName) ||
+         this.parent && this.parent.lookup(varName)
+}
+
+methods.lookupOrFail = function (varName) {
+  return this.lookup(varName) ||
          fail(`Variable \`${varName}\` not in scope.`)
 }
 
@@ -53,4 +57,17 @@ methods.merge = function (env) {
 methods.ensureUndefined = function (varName) {
   return this.typings[varName] &&
          fail(`Variable \`${varName}\` is already defined.`)
+}
+
+methods.assume = function (varName, typing) {
+  this.assign(varName, typing)
+  this.typings[varName].isAssumption = true
+  return this
+}
+
+methods.shouldInfer = function (varName) {
+  var typing = this.lookup(varName)
+  // The type of a variable's expression should be inferred if
+  // it has not been assumed by the programmer.
+  return (! typing) || (typing.isAssumption !== true)
 }

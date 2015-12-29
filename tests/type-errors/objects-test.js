@@ -21,8 +21,8 @@ test('Incompatible objects', (assert) => {
   assert.ok( err instanceof Errors.ArrayLiteralTypeError )
   assert.ok( err.elemTypings.length === 2, "All element types should be included" )
 
-  var o1ExpectedType = t.Record(null, { x: Typing({}, t.TermNum()) })
-  var o2ExpectedType = t.Record(null, { x: Typing({}, t.TermString()) })
+  var o1ExpectedType = t.Record(null, { x: t.TermNum() })
+  var o2ExpectedType = t.Record(null, { x: t.TermString() })
 
   assert.ok( t.eq(err.elemTypings[0].type, o1ExpectedType) )
   assert.ok( t.eq(err.elemTypings[1].type, o2ExpectedType) )
@@ -46,7 +46,7 @@ test('Non-existant property', (assert) => {
 
   assert.equal( err.propertyName, 'y' )
 
-  var expectedType = t.Record(null, { x: Typing({}, t.TermNum()) })
+  var expectedType = t.Record(null, { x: t.TermNum() })
 
   assert.ok( t.eq(err.objectTyping.type, expectedType) )
 

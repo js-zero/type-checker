@@ -17,15 +17,16 @@ $ jsz my-file.js
 - [x] Function calls
 - [x] Arrays
 - [x] Template strings
+- [x] `$assume`
 - [ ] Objects (records)
 - [ ] Hoisted function definitions
 - [ ] Mutually recursive functions
-- [ ] `$assume`
 - [ ] Maps
 - [ ] `$newtype`
 - [ ] Tuple type
 - [ ] Prototypes and keyword `this`
 - [ ] First-class labels
+- [ ] Spread/gather operators
 
 ## Type System
 

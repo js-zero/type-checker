@@ -3,8 +3,7 @@
   var ANNOTATION = t.ANNOTATION
 
   var pretty = require('../pretty')
-  var Typing = require('../type-checker/typing.js')
-  var typeVarNames = {}
+  var typeVarsByName = {}
 
   function getLast (arr) { return arr[arr.length-1] }
 }
@@ -33,8 +32,12 @@ Term
 
 TypeVar
   = name:Identifier {
-    if ( ! typeVarNames[name] ) { typeVarNames[name] = t.NamedTypeVar(name) }
-    return typeVarNames[name]
+    var typeVar = typeVarsByName[name]
+    if ( ! typeVar ) {
+      typeVar = typeVarsByName[name] = t.TypeVar(ANNOTATION)
+      typeVar.name = name
+    }
+    return typeVar
   }
 
 Constructor
@@ -67,19 +70,19 @@ Record
   / "{" __ "..." __ polyVar:Identifier __ "}" {
     return t.Record( ANNOTATION, {}, t.NamedRowTypeVar(polyVar) )
   }
-  / "{" __ first:LabelTypingPair __ pairs:(__ "," __ LabelTypingPair)* __ polyVar:RecordPolyVar? __ "}" {
-    var recordTyping = { [first[0]]: first[1] }
+  / "{" __ first:LabelAndType __ pairs:(__ "," __ LabelAndType)* __ polyVar:RecordPolyVar? __ "}" {
+    var recordType = { [first[0]]: first[1] }
 
     for (var i=0; i < pairs.length; i++) {
       var pair = getLast(pairs[i])
-      recordTyping[ pair[0] ] = pair[1]
+      recordType[ pair[0] ] = pair[1]
     }
-    return t.Record(ANNOTATION, recordTyping, polyVar && getLast(polyVar) || null)
+    return t.Record(ANNOTATION, recordType, polyVar && getLast(polyVar) || null)
   }
 
-LabelTypingPair
+LabelAndType
   = label:(Identifier / ProperIdentifier) __ ":" __ type:Type {
-    return [label, Typing({}, type)]
+    return [label, type]
   }
 
 RecordPolyVar

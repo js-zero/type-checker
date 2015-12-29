@@ -12,8 +12,10 @@ var Env     = require('./environment')
 var Typing  = require('./typing')
 var t       = require('../types')
 
+var unifyMonoEnvs     = require('./unify').unifyMonoEnvs
+var compileAnnotation = require('../type-annotations').compile
+
 var util = require('util')
-var inspect = function (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }
 var fail = require('./assert').fail
 
 var _ = require('lodash')
@@ -25,7 +27,7 @@ exports.typeCheck = function (ast, scopes) {
 
   try {
     buildEnv(env, ast)
-    log("\n----\nGOT environment:", inspect(env))
+    log("\n----\nGOT environment:", env)
     return { env: env, typeErrors: [] }
   }
   catch (err) {
@@ -54,6 +56,7 @@ function buildEnv (env, node) {
       return env
 
     break; case 'VariableDeclaration':
+
       if (node.kind !== 'let') {
         fail("Only `let` declarations are allowed.")
       }
@@ -70,11 +73,34 @@ function buildEnv (env, node) {
         decl.init._name = decl.id.name
       }
 
-      var typing = inferExpr(env, decl.init)
-      return env.assign( decl.id.name, typing)
+      if ( env.shouldInfer(decl.id.name) ) {
+        var typing = inferExpr(env, decl.init)
+        env.assign( decl.id.name, typing )
+      }
+
+      return env
+
 
     break; case 'ExpressionStatement':
-      return inferExpr(env, node.expression)
+      if (
+           node.expression.type === 'TaggedTemplateExpression'
+        && node.expression.tag.type === 'Identifier'
+        && node.expression.tag.name === '$assume'
+      ) {
+
+        var parts = node.expression.quasi.quasis[0].value.raw.split(':')
+        if ( parts.length !== 2 ) {
+          throw new Error(`A type annotation must have two parts separated by a colon, e.g. myFunc : Num`)
+        }
+
+        var varName = _.trim(parts[0])
+        var typeAssumption = compileAnnotation( parts[1] )
+
+        return env.assume( varName, Typing({}, typeAssumption) )
+      }
+      else {
+        return inferExpr(env, node.expression)
+      }
 
     default:
       throw new Error("Statement not supported: " + node.type)
@@ -132,7 +158,7 @@ function inferExpr (env, node) {
       log("> Identifier", node.name)
 
       // [PolyVar], p.33
-      return env.lookup(node.name).instantiate()
+      return env.lookupOrFail(node.name).instantiate()
 
 
     break; case 'ArrayExpression':
@@ -380,7 +406,7 @@ function inferExpr (env, node) {
 
       return Typing(
         monoEnv,
-        t.Record(node, rowTypings, null)
+        t.Record(node, _.mapValues(rowTypings, r => r.type ), null)
       )
 
     break; case 'MemberExpression':
@@ -413,138 +439,6 @@ function inferExpr (env, node) {
 
 }
 
-//
-// [5.4] Unification of typings (p.32)
-//
-function unifyMonoEnvs (typeErrorHandler, env, monoEnvs, existingConstraints) {
-  log("-=-=-\n[unifyMono]\n", monoEnvs)
-  var varTypeMap = {}
-
-  // Gather all variable usage, grouped by variable name
-  monoEnvs.forEach(function(mEnv) {
-    for (var varName in mEnv) {
-      varTypeMap[varName] || (varTypeMap[varName] = [])
-      varTypeMap[varName].push( mEnv[varName] )
-    }
-  })
-
-  //
-  // For each array of variable usages,
-  // create a fresh type variable for all to agree on.
-  //
-  var constraints = _.flatten(
-    Object.keys(varTypeMap).map(function(varName) {
-      var usages = varTypeMap[varName]
-      var freshTypeVar = t.TypeVar(null)
-      return usages.map( u => t.Constraint( freshTypeVar, u ) )
-    })
-  )
-
-  try {
-    return unify( env, constraints.concat(existingConstraints || []) )
-  }
-  catch (err) {
-    if (err instanceof Errors.TypeError) throw typeErrorHandler(err)
-    else                                 throw err
-  }
-}
-
-function unify (env, constraints) {
-  if (constraints.length === 0) return []
-
-  var cs = constraints.shift()
-  var left = cs.left
-  var right = cs.right
-  if (right.tag === 'TypeVar' && left.tag !== 'TypeVar') {
-    // To simplify the algorithm,
-    // always ensure a present type variable is on the left side.
-    var csSwapped = { left: cs.right, right: cs.left }
-    cs = csSwapped
-    left = csSwapped.left
-    right = csSwapped.right
-    log("[[[[Swapped]]]]")
-  }
-
-  log("\n\n----\nUnifying", inspect(left), "\nAnd\n", inspect(right))
-  log("====Constraints====\n", inspect(constraints))
-
-  switch (left.tag) {
-
-    case 'TypeVar':
-      return [ t.Substitution(cs.left, cs.right) ].concat(
-        unify( env, substituteConstraints(cs, constraints) )
-      )
-
-    case 'Arrow':
-
-      if (right.tag === 'Arrow') {
-        var newConstraints = [
-          t.Constraint(left.range, right.range)
-        ].concat(
-          _.zip(left.domain, right.domain).map( terms => t.Constraint.apply(null, terms) )
-        )
-        log("=> Pushing new constraints from Arrow:", inspect(newConstraints))
-        pushAll(constraints, newConstraints)
-        return unify(env, constraints)
-      }
-
-    case 'TermNum':
-    case 'TermBool':
-    case 'TermString':
-    case 'TermUndefined':
-      if (right.tag === left.tag) {
-        log("Unified " + left.tag)
-        return unify(env, constraints)
-      }
-
-    default:
-      throw new Errors.TypeError(env, left, right)
-  }
-
-}
-
-// Exported for testing
-exports.substituteConstraints = substituteConstraints
-
-function substituteConstraints (sub, constraints) {
-  // TODO: occurs check
-  log(`${sub.left.tag} ${sub.left._id || ''} = ${sub.right.tag} ${sub.right._id || ''}`)
-
-  return constraints.map(function (c) {
-    log("  [sub] checking against", c.left.tag, c.left._id || '', "=", c.right.tag, c.right._id || '')
-
-    if (t.eq(c.left, sub.left)) {
-      log("! [sub] Replacing", c.left, "with", sub.right)
-      return t.Constraint(sub.right, c.right)
-    }
-    else if (t.eq(c.right, sub.left)) {
-      log("!.[sub] Replacing", c.right, "with", sub.right)
-      return t.Constraint(c.left, sub.right)
-    }
-    else if (c.right.tag === 'Arrow') {
-      c.right.domain = c.right.domain.map(function(term) {
-        log("  [sub][arrow] checking against", term.tag, term._id || '')
-        if (t.eq(term, sub.left)) {
-          log("! [sub][arrow] Replacing", term, "with", sub.right)
-          return sub.right
-        }
-        else return term
-      })
-      var range = c.right.range
-      log("  [sub][arrow] checking range against", range.tag, range._id || '')
-      if (t.eq(range, sub.left)) {
-        log("! [sub][arrow] Replacing range", range, "with", sub.right)
-        c.right.range = sub.right
-      }
-      return c
-    }
-    else {
-      // No substitutions to make.
-      return c
-    }
-  })
-}
-
 function litTermFromNode (node) {
   switch (typeof node.value) {
     case 'number': return t.TermNum(node)
@@ -556,9 +450,4 @@ function litTermFromNode (node) {
 var log = function () {
   if (! process.env.DEBUG_TYPES) return
   console.log.apply(console, [].slice.call(arguments))
-}
-
-function pushAll (array, otherArray) {
-  array.push.apply(array, otherArray)
-  return array
 }
