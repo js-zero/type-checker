@@ -25,7 +25,7 @@ module.exports = function transform (defs, ctx, type) {
     return t.Record(
       type_.source,
       _.mapValues( type_.rows, ty => transform(defs, ctx, ty) ),
-      transform( defs, ctx, type_.polyVar )
+      transform( defs, ctx, type_.polyTypeVar )
     )
   }
   else {

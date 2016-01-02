@@ -36,12 +36,10 @@ Record.isEq = recordEq
 
 function recordEq (eq, a, b) {
 
-  // The records should not both be polymorphic
+  // If both records are polymorphic,
+  // ensure their row type variables are the same.
   if ( a.polyTypeVar && b.polyTypeVar ) {
-    throw new Error(`Both records are polymorphic (how did this happen?)
-      a: ${JSON.stringify(a)}
-      b: ${JSON.stringify(b)}
-    `)
+    if ( ! eq(a.polyTypeVar, b.polyTypeVar) ) return false
   }
 
   // To simplify, ensure a present polymorphic record is on the right

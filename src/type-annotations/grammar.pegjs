@@ -9,14 +9,21 @@
 }
 
 Start
-  = __ type:Type __ { return type }
+  = __ type:DomainType __ { return type }
 
-Type
+DomainType
   = Constructor
   / Term
   / TypeVar
   / Arrow
-  / Record
+  / DomainRecord
+
+RangeType
+  = Constructor
+  / Term
+  / TypeVar
+  / Arrow
+  / RangeRecord
 
 Term
   = name:ProperIdentifier {
@@ -37,11 +44,15 @@ TypeVar
       typeVar = typeVarsByName[name] = t.TypeVar(ANNOTATION)
       typeVar.name = name
     }
+    if ( typeVar.tag !== 'TypeVar' ) {
+      // TODO: Better error message
+      throw new Error("Cannot use row type variable in place of type variable: " + name)
+    }
     return typeVar
   }
 
 Constructor
-  = constructor:ProperIdentifier __ "(" __ first:Type __ rest:("," __ Type)* __ ")" {
+  = constructor:ProperIdentifier __ "(" __ first:DomainType __ rest:("," __ DomainType)* __ ")" {
     var typeParams = [first].concat(rest)
 
     var type = t['Con' + constructor]
@@ -58,30 +69,68 @@ Constructor
   }
 
 Arrow
-  = "(" __ first:Type rest:(__ "," __ Type)* ")" __ "=>" __ range:Type {
+  = "(" __ first:DomainType rest:(__ "," __ DomainType)* ")" __ "=>" __ range:RangeType {
     var domain = [first].concat( rest.map(getLast) )
     return t.Arrow(ANNOTATION, domain, range)
   }
 
-Record
+EmptyRecord
   = "{" __ "}" {
     return t.Record(ANNOTATION, {}, null)
   }
-  / "{" __ "..." __ polyVar:Identifier __ "}" {
-    return t.Record( ANNOTATION, {}, t.NamedRowTypeVar(polyVar) )
+
+SingularRecord
+  = "{" __ polyVar:RowTypeVariable __ "}" {
+    return t.Record( ANNOTATION, {}, polyVar )
   }
-  / "{" __ first:LabelAndType __ pairs:(__ "," __ LabelAndType)* __ polyVar:RecordPolyVar? __ "}" {
+  / "{" __ polyVar:RowGathering __ "}" {
+    return t.Record( ANNOTATION, {}, polyVar )
+  }
+
+DomainRecord
+  = EmptyRecord
+  / SingularRecord
+  / "{" __ recordType:RecordLabels __ polyVar:("," __ RowGathering)? __  "}" {
+    return t.Record(ANNOTATION, recordType, polyVar && getLast(polyVar) || null)
+  }
+RangeRecord
+  = EmptyRecord
+  / SingularRecord
+  / "{" __ polyVar:(RowGathering __ ",")? __ recordType:RecordLabels __  "}" {
+    return t.Record(ANNOTATION, recordType, polyVar && polyVar[0] || null)
+  }
+
+
+RowGathering
+  = "..." __ polyVar:RowTypeVariable { return polyVar }
+
+RowTypeVariable
+  = name:Identifier {
+    var rowTypeVar = typeVarsByName[name]
+    if ( ! rowTypeVar ) {
+      rowTypeVar = typeVarsByName[name] = t.RowTypeVar(ANNOTATION)
+      rowTypeVar.name = name
+    }
+    if ( rowTypeVar.tag !== 'RowTypeVar' ) {
+      // TODO: Better error message
+      throw new Error("Cannot use type variable in place of row type variable: " + name)
+    }
+    return rowTypeVar
+  }
+
+RecordLabels
+  = first:LabelAndType __ pairs:(__ "," __ LabelAndType)* __ {
     var recordType = { [first[0]]: first[1] }
 
     for (var i=0; i < pairs.length; i++) {
       var pair = getLast(pairs[i])
       recordType[ pair[0] ] = pair[1]
     }
-    return t.Record(ANNOTATION, recordType, polyVar && getLast(polyVar) || null)
+    return recordType
   }
 
 LabelAndType
-  = label:(Identifier / ProperIdentifier) __ ":" __ type:Type {
+  = label:(Identifier / ProperIdentifier) __ ":" __ type:DomainType {
     return [label, type]
   }
 

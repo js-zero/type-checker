@@ -35,12 +35,12 @@ function eq (a, b) {
   }
   else if (a.tag === 'Con') {
     return b.tag === 'Con'
-        && _.chain(a.args).zip(b.args).all( pair => eq(pair[0], pair[1]) )
+        && _.chain(a.args).zip(b.args).all( pair => eq(pair[0], pair[1]) ).value()
   }
   else if (a.tag === 'Arrow') {
     return b.tag === 'Arrow'
         && eq(a.range, b.range)
-        && _.chain(a.domain).zip(b.domain).all( pair => eq(pair[0], pair[1]) )
+        && _.chain(a.domain).zip(b.domain).all( pair => eq(pair[0], pair[1]) ).value()
   }
   else if (a.tag === 'Record') {
     return b.tag === 'Record' && Record.isEq(eq, a, b)
