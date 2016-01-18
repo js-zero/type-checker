@@ -52,7 +52,11 @@ function buildEnv (env, node) {
     case 'Program':
     case 'BlockStatement':
       // Every statement can potentially add to the environment (e.g. `let` statements).
-      node.body.forEach( n => buildEnv(env, n) )
+      for (var i=0; i < node.body.length; i++) {
+        var child = node.body[i]
+        buildEnv(env, child)
+        if ( child.type === 'ReturnStatement' ) break;
+      }
       return env
 
     break; case 'VariableDeclaration':
@@ -93,7 +97,7 @@ function buildEnv (env, node) {
           throw new Error(`A type annotation must have two parts separated by a colon, e.g. myFunc : Num`)
         }
 
-        var varName = _.trim(parts[0])
+        var varName = _.trim( parts[0] )
         var annotation = compileAnnotation( parts[1] )
 
         return env.assume( varName, Typing({}, annotation.type) )
@@ -102,9 +106,50 @@ function buildEnv (env, node) {
         return inferExpr(env, node.expression)
       }
 
+    break; case 'ReturnStatement':
+      var typing = node.argument
+        ? inferExpr( env, node.argument )
+        : Typing( null, t.TermUndefined(node) )
+
+      return env.assign('*return', typing)
+
     default:
       throw new Error("Statement not supported: " + node.type)
   }
+}
+
+
+
+function inferFunctionBody (env, paramNames, node) {
+
+  if ( node.type !== 'BlockStatement' ) {
+    fail(`Not a block statement (this sholudn't happen)`)
+  }
+
+  for (var i=0; i < node.body.length; i++) {
+    var child = node.body[i]
+    buildEnv(env, child)
+    if ( child.type === 'ReturnStatement' ) break;
+  }
+
+
+  var returnTyping = env.typings['*return'] || Typing( {}, t.TermUndefined(node) )
+  delete env.typings['*return']
+
+  //
+  // Merge any generated monoEnv restrictions on parameters with return type.
+  // This is important to bubble up type restrictions on function params.
+  //
+  // WARNING: This approach may be incorrect.
+  //          If you are a type theory export, please verify!
+  //
+  var monoEnvs = _.map( env.typings ).map( ty => ty.monoEnv ).concat( [returnTyping.monoEnv] )
+  var substitutions = unifyMonoEnvs( _.identity, env, monoEnvs )
+
+  var finalMonoEnv = Typing.substituteAndAggregateMonoEnvs( substitutions, monoEnvs )
+  var finalType = t.applySubs(substitutions, returnTyping.type)
+
+  return Typing( finalMonoEnv, finalType )
 }
 
 
@@ -116,14 +161,7 @@ function inferExpr (env, node) {
     //
     // Constraint-generating nodes
     //
-    case 'ReturnStatement':
-      // Record expression for later use by function type generator
-      // scope.returnExprs.push(node.argument)
-
-      return inferExpr(ctx, node.argument)
-
-
-    break; case 'Literal':
+    case 'Literal':
       log("> Literal", node.value)
       return Typing(null, litTermFromNode(node))
 
@@ -255,7 +293,9 @@ function inferExpr (env, node) {
       // TODO: block bodies with `return` statements
       // buildEnv(functionEnv, node.body)
       //
-      var bodyTyping = inferExpr(functionEnv, node.body)
+      var bodyTyping = (node.body.type === 'BlockStatement')
+        ? inferFunctionBody(functionEnv, node.params.map(p => p.name), node.body)
+        : inferExpr(functionEnv, node.body)
 
       //
       // Δ_0 = { f :: 𝞣_1 -> ... -> 𝞣_n -> 𝞣_0 }

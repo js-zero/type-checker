@@ -41,4 +41,4 @@ global.testInference = function (assert, ast, annotations) {
   return result
 }
 var util = require('util')
-var inspect = function (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }
+global.inspect = function (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }

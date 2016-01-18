@@ -36,6 +36,9 @@ Term
     }
     return type(ANNOTATION)
   }
+  / "(" ")" {
+    return t.TermUndefined(ANNOTATION)
+  }
 
 TypeVar
   = name:Identifier {
