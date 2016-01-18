@@ -6,15 +6,7 @@ var pretty  = require('./src/pretty')
 exports.typeCheckFile = function (file) {
 
   var source = fs.readFileSync(file, 'utf8')
-
-  var ast = esprima.parse(source, {
-    loc: true,
-    source: file,
-    comment: true
-  })
-
-  var TypeChecker = require('./src/type-checker')
-  var result = TypeChecker.typeCheck(ast)
+  var result = exports.infer(source)
 
   console.log("\n  I have inferred the following types:\n")
   console.log(pretty.envC(result.env))
@@ -32,4 +24,16 @@ exports.typeCheckFile = function (file) {
     console.log("\n  Your code has no type errors. Great job!\n")
   }
 
+}
+
+
+exports.infer = function (source, filename) {
+  var ast = esprima.parse(source, {
+    loc: true,
+    source: filename || '[inline source code]',
+    comment: true
+  })
+
+  var TypeChecker = require('./src/type-checker')
+  return TypeChecker.typeCheck(ast)
 }
