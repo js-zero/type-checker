@@ -1,4 +1,39 @@
 #!/usr/bin/env node
 
+var shorthand = {
+  c: 'compile'
+}
+var opts = {
+  compile: false
+}
+
+// Compile command line args
+var args = process.argv.slice(2).filter(function(arg) {
+  if (arg[0] === '-' && arg[1] === '-') {
+    var option = arg.substring(2)
+    if (opts[option] === undefined) throw new Error("Invalid option: --" + option)
+
+    opts[option] = true
+  }
+  else if (arg[0] === '-') {
+    var shortName = arg.substring(1)
+    if (! shortName) throw new Error("Invalid option: -" + shortName)
+
+    var option = shorthand[shortName]
+    opts[option] = true
+  }
+  return arg[0] !== '-'
+})
+
+
 var jsz = require('../index.js')
-jsz.typeCheckFile( process.argv[2] )
+
+if (opts.compile) {
+  var fs = require('fs')
+  var result = jsz.infer( fs.readFileSync(args[0], 'utf8') )
+  var output = JSON.stringify(result.env, (k,v) => (k === 'source') ? undefined : v)
+  console.log(output)
+}
+else {
+  jsz.typeCheckFile( args[0] )
+}
