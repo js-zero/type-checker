@@ -27,7 +27,7 @@ exports.typeCheck = function (ast, scopes) {
 
   try {
     buildEnv(env, ast)
-    log("\n----\nGOT environment:", env)
+    log("\n----\nGOT environment:", inspect(env))
     return { env: env, typeErrors: [] }
   }
   catch (err) {
@@ -260,90 +260,10 @@ function inferExpr (env, node) {
       return Typing(monoEnv, t.TermNum(node))
 
     break; case 'ArrowFunctionExpression':
-      //
-      // [Def], p.37
-      //
-    // TODO: Use [Def] only if node._name exists.
-    //       Otherwise, use [Abs] and [Abs']
       log("> ArrowFunctionExpression")
 
-      // Create new environment (scope) before descending into function body
-      var functionEnv = Env(env)
+      return node._name ? defFunction(env, node, node._name) : absFunction(env, node)
 
-      //
-      // Δ_1 |- P_1 :: 𝞣_1
-      // ...
-      // Δ_n |- P_n :: 𝞣_n
-      //
-      // Assign a type variable to each parameter,
-      // and also add to function environment.
-      //
-      var paramTypings = node.params.map(function(p) {
-        if (p.type !== 'Identifier') fail("Destructuring not yet supported")
-
-        let typeVar = t.TypeVar(p)
-        let typing = Typing({ [p.name]: typeVar }, typeVar)
-        functionEnv.assign( p.name, typing )
-
-        return typing
-      })
-
-      //
-      // Γ, Δ' ⊢ E :: 𝞣_0
-      // TODO: block bodies with `return` statements
-      // buildEnv(functionEnv, node.body)
-      //
-      var bodyTyping = (node.body.type === 'BlockStatement')
-        ? inferFunctionBody(functionEnv, node.params.map(p => p.name), node.body)
-        : inferExpr(functionEnv, node.body)
-
-      //
-      // Δ_0 = { f :: 𝞣_1 -> ... -> 𝞣_n -> 𝞣_0 }
-      //
-      // Build mono environment with only function as a constraint.
-      //
-      var functionType = t.Arrow(
-        node,
-        paramTypings.map( pt => pt.type ),
-        bodyTyping.type
-      )
-      var functionMonoEnv = { [node._name]: functionType }
-
-      //
-      // 𝚿 = 𝓤({ Δ_0, Δ_1, ..., Δ_n, Δ' })
-      //
-      // Ensure types of params and function body all agree.
-      //
-      var substitutions = unifyMonoEnvs(
-        _.identity,
-        functionEnv,
-        paramTypings.map( pt => pt.monoEnv ).concat([ bodyTyping.monoEnv ])
-      )
-
-      //
-      // Δ = 𝚿Δ_0 ∪ 𝚿Δ' \ U[ i=1..n; dom( Δ_i ) ]
-      //
-      // Apply all substitutions to get the final inferred
-      // function mono environment.
-      //
-
-      // 𝚿Δ_0 ∪ 𝚿Δ'
-      var allConstraints = Typing.substituteAndAggregateMonoEnvs(
-        substitutions,
-        [functionMonoEnv, bodyTyping.monoEnv]
-      )
-
-      // \ U[ i=1..n; dom( Δ_i ) ]
-      // Each param typing type should be a type variable.
-      // TODO: Handle destructuring
-      var paramNames = node.params.map( p => p.name )
-      var finalMonoEnv = _.omit(
-        allConstraints,
-        (c, varName) => _.includes(paramNames, varName)
-      )
-
-      // For final type, pull out of substitution-applied finalMonoEnv.
-      return Typing( finalMonoEnv, finalMonoEnv[node._name] )
 
     break; case 'CallExpression':
       //
@@ -368,7 +288,8 @@ function inferExpr (env, node) {
       //
       // 𝚿 = 𝓤({ Δ_1, Δ_2 }, { 𝞣' ~ 𝞣'' -> α })
       //
-      var monoEnvs = argumentTypings.map( at => at.monoEnv ).concat([calleeTyping.monoEnv])
+      var monoEnvs = argumentTypings.map( at => at.monoEnv ).concat( [calleeTyping.monoEnv] )
+
       var substitutions = unifyMonoEnvs(
         (err) =>
           new Errors.CallTypeError(err, env, node, calleeTyping, argumentTypings),
@@ -464,13 +385,21 @@ function inferExpr (env, node) {
         throw new Errors.NotAnObjectTypeError(env, node, recordTyping, label)
       }
 
-      var memberTyping = recordTyping.type.rows[label]
+      var memberType = recordTyping.type.rows[label]
 
-      if ( ! memberTyping ) {
+      if ( ! memberType ) {
         throw new Errors.NoSuchPropertyTypeError(env, node, recordTyping, label)
       }
 
-      return memberTyping
+      //
+      // Record members are only monotypes, and not full typings.
+      // However, the record itself contains necessary monoEnv restrictions.
+      // Return such restrictions along with the member type.
+      //
+      return Typing(
+        recordTyping.monoEnv,
+        memberType
+      )
 
 
     default:
@@ -478,6 +407,141 @@ function inferExpr (env, node) {
   }
 
 }
+
+function defFunction (env, node, functionName) {
+  log('[Def]')
+  //
+  // [Def], p.37
+  //
+  // Create new environment (scope) before descending into function body
+  var functionEnv = Env(env)
+
+  //
+  // Δ_1 |- P_1 :: 𝞣_1
+  // ...
+  // Δ_n |- P_n :: 𝞣_n
+  //
+  // Assign a type variable to each parameter,
+  // and also add to function environment.
+  //
+  var paramTypings = node.params.map(function(p) {
+    if (p.type !== 'Identifier') fail("Destructuring not yet supported")
+
+    let typeVar = t.TypeVar(p)
+    let typing = Typing({ [p.name]: typeVar }, typeVar)
+    functionEnv.assign( p.name, typing )
+
+    return typing
+  })
+
+  //
+  // Γ, Δ' ⊢ E :: 𝞣_0
+  //
+  var bodyTyping = (node.body.type === 'BlockStatement')
+    ? inferFunctionBody(functionEnv, node.params.map(p => p.name), node.body)
+    : inferExpr(functionEnv, node.body)
+
+  //
+  // Δ_0 = { f :: 𝞣_1 -> ... -> 𝞣_n -> 𝞣_0 }
+  //
+  // Build mono environment with only function as a constraint.
+  //
+  var functionType = t.Arrow(
+    node,
+    paramTypings.map( pt => pt.type ),
+    bodyTyping.type
+  )
+  var functionMonoEnv = { [functionName]: functionType }
+
+  //
+  // 𝚿 = 𝓤({ Δ_0, Δ_1, ..., Δ_n, Δ' })
+  //
+  // Ensure types of params and function body all agree.
+  //
+  var substitutions = unifyMonoEnvs(
+    _.identity,
+    functionEnv,
+    paramTypings.map( pt => pt.monoEnv ).concat([ bodyTyping.monoEnv ])
+  )
+
+  //
+  // Δ = 𝚿Δ_0 ∪ 𝚿Δ' \ U[ i=1..n; dom( Δ_i ) ]
+  //
+  // Apply all substitutions to get the final inferred
+  // function mono environment.
+  //
+
+  // 𝚿Δ_0 ∪ 𝚿Δ'
+  var allConstraints = Typing.substituteAndAggregateMonoEnvs(
+    substitutions,
+    [functionMonoEnv, bodyTyping.monoEnv]
+  )
+
+  // \ U[ i=1..n; dom( Δ_i ) ]
+  // Each param typing type should be a type variable.
+  // TODO: Handle destructuring
+  var paramNames = node.params.map( p => p.name )
+  var finalMonoEnv = _.omit(
+    allConstraints,
+    (c, varName) => _.includes(paramNames, varName)
+  )
+
+  // For final type, pull out of substitution-applied finalMonoEnv.
+  return Typing( finalMonoEnv, finalMonoEnv[functionName] )
+}
+
+
+function absFunction (env, node) {
+  log('[Abs]')
+  //
+  // [Abs] and [Abs'], p.34
+  //
+  // Create new environment (scope) before descending into function body
+  var functionEnv = Env(env)
+
+  //
+  // Assign a type variable to each parameter,
+  // and also add to function environment.
+  //
+  var paramTypings = node.params.map(function(p) {
+    if (p.type !== 'Identifier') fail("Destructuring not yet supported")
+
+    let typeVar = t.TypeVar(p)
+    let typing = Typing({ [p.name]: typeVar }, typeVar)
+    functionEnv.assign( p.name, typing )
+
+    return typing
+  })
+
+  //
+  // Γ, Δ ⊢ E :: 𝞣
+  //
+  var bodyTyping = (node.body.type === 'BlockStatement')
+    ? inferFunctionBody(functionEnv, node.params.map(p => p.name), node.body)
+    : inferExpr(functionEnv, node.body)
+
+  //
+  // Pull final types of parameters from body typing's monoEnv
+  //
+  var paramTypes = node.params.map( (p,i) => bodyTyping.monoEnv[p.name] )
+
+  //
+  // Allow let-polymorphism by removing params from the monoEnv
+  //
+  var lambdaTyping = Typing(
+    _.omit( bodyTyping.monoEnv, ...node.params.map(p => p.name) ),
+    bodyTyping.type
+  )
+
+  //
+  // Combine for full lambda typing
+  //
+  return Typing(
+    lambdaTyping.monoEnv,
+    t.Arrow(node, paramTypes, bodyTyping.type)
+  )
+}
+
 
 function litTermFromNode (node) {
   switch (typeof node.value) {
@@ -491,3 +555,5 @@ var log = function () {
   if (! process.env.DEBUG_TYPES) return
   console.log.apply(console, [].slice.call(arguments))
 }
+
+var inspect = (obj) => util.inspect(obj, { showHidden: false, depth: null })

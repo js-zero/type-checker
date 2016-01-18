@@ -61,4 +61,4 @@ exports.RowTypeVar = Record.RowTypeVar
 exports.NamedRowTypeVar = Record.NamedRowTypeVar
 
 // Debugging
-var includeSource = process.env.HIDE_SOURCE_NODES ? false : true
+var includeSource = process.env.DEBUG_TYPES ? false : true

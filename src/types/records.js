@@ -6,7 +6,7 @@ var assert = require('assert')
 module.exports = Record
 
 // Debugging
-var includeSource = process.env.HIDE_SOURCE_NODES ? false : true
+var includeSource = process.env.DEBUG_TYPES ? false : true
 
 function Record (sourceNode, rows, polyTypeVar) {
   return {
