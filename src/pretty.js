@@ -20,6 +20,9 @@ var defaultColorOptions = {
 
 function prettyType (type, options) {
   options || (options = {})
+  options.rowTypeVars || (options.rowTypeVars = {})
+  options.typeVars || (options.typeVars = {})
+
   var markType = options.markType || _.identity
 
   switch (type.tag) {
@@ -27,37 +30,65 @@ function prettyType (type, options) {
       return markType('String')
     case 'TermNum':
       return markType('Num')
+    case 'TermBool':
+      return markType('Bool')
+
 
     case 'Arrow':
-      options.typeVars || (options.typeVars = {})
-      var domainStr = type.domain.map( ty => prettyType(ty, options) ).join(', ')
-      return `(${ domainStr }) => ${ prettyType(type.range, options) }`
+      var domainStr = type.domain.map(
+        ty => prettyType( ty, Object.assign({}, options, { isDomainType: true }) )
+      ).join(', ')
+
+      var rangeStr = prettyType( type.range, Object.assign({}, options, { isRangeType: true }) )
+
+      return `(${ domainStr }) => ${ rangeStr }`
+
 
     case 'Con':
       var typeStr = markType(type.name)
       var subtypes = type.args.map( a => prettyType(a, options) )
       return `${ typeStr }(${ subtypes.join(', ') })`
 
-    case 'TypeVar':
-    case 'RowTypeVar':
 
-      options.typeVars || (options.typeVars = {})
+    case 'TypeVar':
       if ( ! options.typeVars[ type._id ] ) {
         options.typeVars[ type._id ] = alphabet[ Object.keys(options.typeVars).length ]
       }
-
       var letterName = options.typeVars[ type._id ] +
         (process.env.DEBUG_TYPES
                 ? `.${type.tag.replace('TypeVar', '')}${type._id-5000}`
                 : '')
-
       return (options.markTypeVar || _.identity)( letterName )
 
-    case 'Record':
-      var pairs = _.map( type.rows, (type, label) => `${label}: ${prettyType(type, options)}` )
-      if ( type.polyVar ) pairs.push( prettyType(type.polyVar, options) )
 
-      return `{ ${pairs.join(', ')} }`
+    case 'RowTypeVar':
+      if ( ! options.rowTypeVars[ type._id ] ) {
+        options.rowTypeVars[ type._id ] = alphabet[ Object.keys(options.rowTypeVars).length + 17 ]
+      }
+      var letterName = options.rowTypeVars[ type._id ] +
+        (process.env.DEBUG_TYPES
+                ? `.${type.tag.replace('TypeVar', '')}${type._id-95000}`
+               : '')
+
+      return (options.markTypeVar || _.identity)( `...${letterName}` )
+
+
+    case 'Record':
+      var rows = _.map( type.rows, row => prettyType(row, options) )
+      if ( options.isDomainType ) {
+        rows.reverse()
+      }
+      if ( options.isDomainType && rows.length === 1 ) {
+        // Change `{ ...r }` to `{ r }` for brevity
+        rows[0] = rows[0].replace('...', '')
+      }
+      return `{ ${rows.join(', ')} }`
+
+
+    case 'RowSet':
+      var pairs = _.map( type.labelTypes, (type, label) => `${label}: ${prettyType(type, options)}` )
+      return pairs.sort().join(', ')
+
 
     default:
       console.log("Unknown type:", type)

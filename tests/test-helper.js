@@ -3,7 +3,7 @@ var esprima = require('esprima')
 
 global.__src = __dirname + '/../src'
 
-global.parseAST = function (sourceString) {
+global.buildAST = function (sourceString) {
   return esprima.parse(sourceString, {
     loc: false,
     source: 'Test Source Code Snippet',
@@ -18,12 +18,16 @@ var typeCheck   = require(__src + '/type-checker').typeCheck
 var compileType = require(__src + '/type-annotations').compile
 
 
-global.testInference = function (assert, ast, annotations) {
+global.testInference = function (assert, source, annotations, useDefaultEnv) {
+  var parentEnv = useDefaultEnv ? getRuntimeEnv() : null
 
-  var result = typeCheck( parseAST(ast) )
+  var result = typeCheck( parentEnv, buildAST(source) )
   assert.equal( result.typeErrors.length, 0, "No type errors should exist." )
 
-  if (result.typeErrors.length) throw result.typeErrors[0]
+  if (result.typeErrors.length) {
+    console.log( "Type error:", inspect(result.typeErrors[0]) )
+    throw result.typeErrors[0]
+  }
 
   for (var varName in annotations) {
     var annotation = compileType( annotations[varName] )
@@ -42,3 +46,15 @@ global.testInference = function (assert, ast, annotations) {
 }
 var util = require('util')
 global.inspect = function (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }
+
+
+var fs = require('fs')
+var runtimeEnv = null
+function getRuntimeEnv () {
+  if ( ! runtimeEnv ) {
+    var runtimeFile   = __dirname + '/../src/runtime.js'
+    var runtimeSource = fs.readFileSync(runtimeFile, 'utf8')
+    runtimeEnv        = typeCheck( null, buildAST(runtimeSource) ).env
+  }
+  return runtimeEnv
+}

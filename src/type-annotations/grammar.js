@@ -94,24 +94,26 @@ module.exports = (function() {
         peg$c16 = "}",
         peg$c17 = { type: "literal", value: "}", description: "\"}\"" },
         peg$c18 = function() {
-            return t.Record(ANNOTATION, {}, null)
+            return t.Record(ANNOTATION, [])
           },
-        peg$c19 = function(polyVar) {
-            return t.Record( ANNOTATION, {}, polyVar )
+        peg$c19 = function(row) {
+            return t.Record(ANNOTATION, [row])
           },
-        peg$c20 = function(recordType, polyVar) {
-            return t.Record(ANNOTATION, recordType, polyVar && getLast(polyVar) || null)
+        peg$c20 = function(rowSet, rowVar) {
+            var rows = [ rowSet, rowVar && getLast(rowVar) ].filter(_ => _)
+            return t.Record(ANNOTATION, rows)
           },
-        peg$c21 = function(polyVar, recordType) {
-            return t.Record(ANNOTATION, recordType, polyVar && polyVar[0] || null)
+        peg$c21 = function(first, rest) {
+            var rows = [first].concat( rest.map(getLast) )
+            return t.Record(ANNOTATION, rows)
           },
         peg$c22 = "...",
         peg$c23 = { type: "literal", value: "...", description: "\"...\"" },
         peg$c24 = function(polyVar) { return polyVar },
         peg$c25 = function(name) {
-            var rowTypeVar = typeVarsByName[name]
+            var rowTypeVar = rowTypeVarsByName[name]
             if ( ! rowTypeVar ) {
-              rowTypeVar = typeVarsByName[name] = t.RowTypeVar(ANNOTATION)
+              rowTypeVar = rowTypeVarsByName[name] = t.RowTypeVar(ANNOTATION)
               rowTypeVar.name = name
             }
             if ( rowTypeVar.tag !== 'RowTypeVar' ) {
@@ -121,13 +123,16 @@ module.exports = (function() {
             return rowTypeVar
           },
         peg$c26 = function(first, pairs) {
-            var recordType = { [first[0]]: first[1] }
+            var labels = { [first[0]]: first[1] }
 
             for (var i=0; i < pairs.length; i++) {
               var pair = getLast(pairs[i])
-              recordType[ pair[0] ] = pair[1]
+              if ( labels[ pair[0] ] ) {
+                throw new Error("Annotation: Duplicate property in object: " + pair[0])
+              }
+              labels[ pair[0] ] = pair[1]
             }
-            return recordType
+            return t.RowSet(labels)
           },
         peg$c27 = ":",
         peg$c28 = { type: "literal", value: ":", description: "\":\"" },
@@ -831,6 +836,9 @@ module.exports = (function() {
         s2 = peg$parse__();
         if (s2 !== peg$FAILED) {
           s3 = peg$parseRowTypeVariable();
+          if (s3 === peg$FAILED) {
+            s3 = peg$parseRecordVar();
+          }
           if (s3 !== peg$FAILED) {
             s4 = peg$parse__();
             if (s4 !== peg$FAILED) {
@@ -865,54 +873,6 @@ module.exports = (function() {
         peg$currPos = s0;
         s0 = peg$FAILED;
       }
-      if (s0 === peg$FAILED) {
-        s0 = peg$currPos;
-        if (input.charCodeAt(peg$currPos) === 123) {
-          s1 = peg$c14;
-          peg$currPos++;
-        } else {
-          s1 = peg$FAILED;
-          if (peg$silentFails === 0) { peg$fail(peg$c15); }
-        }
-        if (s1 !== peg$FAILED) {
-          s2 = peg$parse__();
-          if (s2 !== peg$FAILED) {
-            s3 = peg$parseRowGathering();
-            if (s3 !== peg$FAILED) {
-              s4 = peg$parse__();
-              if (s4 !== peg$FAILED) {
-                if (input.charCodeAt(peg$currPos) === 125) {
-                  s5 = peg$c16;
-                  peg$currPos++;
-                } else {
-                  s5 = peg$FAILED;
-                  if (peg$silentFails === 0) { peg$fail(peg$c17); }
-                }
-                if (s5 !== peg$FAILED) {
-                  peg$savedPos = s0;
-                  s1 = peg$c19(s3);
-                  s0 = s1;
-                } else {
-                  peg$currPos = s0;
-                  s0 = peg$FAILED;
-                }
-              } else {
-                peg$currPos = s0;
-                s0 = peg$FAILED;
-              }
-            } else {
-              peg$currPos = s0;
-              s0 = peg$FAILED;
-            }
-          } else {
-            peg$currPos = s0;
-            s0 = peg$FAILED;
-          }
-        } else {
-          peg$currPos = s0;
-          s0 = peg$FAILED;
-        }
-      }
 
       return s0;
     }
@@ -935,7 +895,7 @@ module.exports = (function() {
           if (s1 !== peg$FAILED) {
             s2 = peg$parse__();
             if (s2 !== peg$FAILED) {
-              s3 = peg$parseRecordLabels();
+              s3 = peg$parseRowSet();
               if (s3 !== peg$FAILED) {
                 s4 = peg$parse__();
                 if (s4 !== peg$FAILED) {
@@ -950,7 +910,7 @@ module.exports = (function() {
                   if (s6 !== peg$FAILED) {
                     s7 = peg$parse__();
                     if (s7 !== peg$FAILED) {
-                      s8 = peg$parseRowGathering();
+                      s8 = peg$parseRecordVar();
                       if (s8 !== peg$FAILED) {
                         s6 = [s6, s7, s8];
                         s5 = s6;
@@ -1018,7 +978,7 @@ module.exports = (function() {
     }
 
     function peg$parseRangeRecord() {
-      var s0, s1, s2, s3, s4, s5, s6, s7;
+      var s0, s1, s2, s3, s4, s5, s6, s7, s8, s9;
 
       s0 = peg$parseEmptyRecord();
       if (s0 === peg$FAILED) {
@@ -1035,58 +995,92 @@ module.exports = (function() {
           if (s1 !== peg$FAILED) {
             s2 = peg$parse__();
             if (s2 !== peg$FAILED) {
-              s3 = peg$currPos;
-              s4 = peg$parseRowGathering();
-              if (s4 !== peg$FAILED) {
-                s5 = peg$parse__();
-                if (s5 !== peg$FAILED) {
+              s3 = peg$parseRangeRecordPart();
+              if (s3 !== peg$FAILED) {
+                s4 = [];
+                s5 = peg$currPos;
+                s6 = peg$parse__();
+                if (s6 !== peg$FAILED) {
                   if (input.charCodeAt(peg$currPos) === 44) {
-                    s6 = peg$c8;
+                    s7 = peg$c8;
                     peg$currPos++;
                   } else {
-                    s6 = peg$FAILED;
+                    s7 = peg$FAILED;
                     if (peg$silentFails === 0) { peg$fail(peg$c9); }
                   }
-                  if (s6 !== peg$FAILED) {
-                    s4 = [s4, s5, s6];
-                    s3 = s4;
+                  if (s7 !== peg$FAILED) {
+                    s8 = peg$parse__();
+                    if (s8 !== peg$FAILED) {
+                      s9 = peg$parseRangeRecordPart();
+                      if (s9 !== peg$FAILED) {
+                        s6 = [s6, s7, s8, s9];
+                        s5 = s6;
+                      } else {
+                        peg$currPos = s5;
+                        s5 = peg$FAILED;
+                      }
+                    } else {
+                      peg$currPos = s5;
+                      s5 = peg$FAILED;
+                    }
                   } else {
-                    peg$currPos = s3;
-                    s3 = peg$FAILED;
+                    peg$currPos = s5;
+                    s5 = peg$FAILED;
                   }
                 } else {
-                  peg$currPos = s3;
-                  s3 = peg$FAILED;
+                  peg$currPos = s5;
+                  s5 = peg$FAILED;
                 }
-              } else {
-                peg$currPos = s3;
-                s3 = peg$FAILED;
-              }
-              if (s3 === peg$FAILED) {
-                s3 = null;
-              }
-              if (s3 !== peg$FAILED) {
-                s4 = peg$parse__();
+                while (s5 !== peg$FAILED) {
+                  s4.push(s5);
+                  s5 = peg$currPos;
+                  s6 = peg$parse__();
+                  if (s6 !== peg$FAILED) {
+                    if (input.charCodeAt(peg$currPos) === 44) {
+                      s7 = peg$c8;
+                      peg$currPos++;
+                    } else {
+                      s7 = peg$FAILED;
+                      if (peg$silentFails === 0) { peg$fail(peg$c9); }
+                    }
+                    if (s7 !== peg$FAILED) {
+                      s8 = peg$parse__();
+                      if (s8 !== peg$FAILED) {
+                        s9 = peg$parseRangeRecordPart();
+                        if (s9 !== peg$FAILED) {
+                          s6 = [s6, s7, s8, s9];
+                          s5 = s6;
+                        } else {
+                          peg$currPos = s5;
+                          s5 = peg$FAILED;
+                        }
+                      } else {
+                        peg$currPos = s5;
+                        s5 = peg$FAILED;
+                      }
+                    } else {
+                      peg$currPos = s5;
+                      s5 = peg$FAILED;
+                    }
+                  } else {
+                    peg$currPos = s5;
+                    s5 = peg$FAILED;
+                  }
+                }
                 if (s4 !== peg$FAILED) {
-                  s5 = peg$parseRecordLabels();
+                  s5 = peg$parse__();
                   if (s5 !== peg$FAILED) {
-                    s6 = peg$parse__();
+                    if (input.charCodeAt(peg$currPos) === 125) {
+                      s6 = peg$c16;
+                      peg$currPos++;
+                    } else {
+                      s6 = peg$FAILED;
+                      if (peg$silentFails === 0) { peg$fail(peg$c17); }
+                    }
                     if (s6 !== peg$FAILED) {
-                      if (input.charCodeAt(peg$currPos) === 125) {
-                        s7 = peg$c16;
-                        peg$currPos++;
-                      } else {
-                        s7 = peg$FAILED;
-                        if (peg$silentFails === 0) { peg$fail(peg$c17); }
-                      }
-                      if (s7 !== peg$FAILED) {
-                        peg$savedPos = s0;
-                        s1 = peg$c21(s3, s5);
-                        s0 = s1;
-                      } else {
-                        peg$currPos = s0;
-                        s0 = peg$FAILED;
-                      }
+                      peg$savedPos = s0;
+                      s1 = peg$c21(s3, s4);
+                      s0 = s1;
                     } else {
                       peg$currPos = s0;
                       s0 = peg$FAILED;
@@ -1117,7 +1111,18 @@ module.exports = (function() {
       return s0;
     }
 
-    function peg$parseRowGathering() {
+    function peg$parseRangeRecordPart() {
+      var s0;
+
+      s0 = peg$parseRecordVar();
+      if (s0 === peg$FAILED) {
+        s0 = peg$parseRowSet();
+      }
+
+      return s0;
+    }
+
+    function peg$parseRecordVar() {
       var s0, s1, s2, s3;
 
       s0 = peg$currPos;
@@ -1166,7 +1171,7 @@ module.exports = (function() {
       return s0;
     }
 
-    function peg$parseRecordLabels() {
+    function peg$parseRowSet() {
       var s0, s1, s2, s3, s4, s5, s6, s7, s8;
 
       s0 = peg$currPos;
@@ -1737,6 +1742,7 @@ module.exports = (function() {
 
       var pretty = require('../pretty')
       var typeVarsByName = {}
+      var rowTypeVarsByName = {}
 
       function getLast (arr) { return arr[arr.length-1] }
 

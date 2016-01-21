@@ -4,6 +4,7 @@
 
   var pretty = require('../pretty')
   var typeVarsByName = {}
+  var rowTypeVarsByName = {}
 
   function getLast (arr) { return arr[arr.length-1] }
 }
@@ -79,39 +80,41 @@ Arrow
 
 EmptyRecord
   = "{" __ "}" {
-    return t.Record(ANNOTATION, {}, null)
+    return t.Record(ANNOTATION, [])
   }
 
 SingularRecord
-  = "{" __ polyVar:RowTypeVariable __ "}" {
-    return t.Record( ANNOTATION, {}, polyVar )
-  }
-  / "{" __ polyVar:RowGathering __ "}" {
-    return t.Record( ANNOTATION, {}, polyVar )
+  = "{" __ row:(RowTypeVariable / RecordVar) __ "}" {
+    return t.Record(ANNOTATION, [row])
   }
 
 DomainRecord
   = EmptyRecord
   / SingularRecord
-  / "{" __ recordType:RecordLabels __ polyVar:("," __ RowGathering)? __  "}" {
-    return t.Record(ANNOTATION, recordType, polyVar && getLast(polyVar) || null)
+  / "{" __ rowSet:RowSet __ rowVar:("," __ RecordVar)? __  "}" {
+    var rows = [ rowSet, rowVar && getLast(rowVar) ].filter(_ => _)
+    return t.Record(ANNOTATION, rows)
   }
 RangeRecord
   = EmptyRecord
   / SingularRecord
-  / "{" __ polyVar:(RowGathering __ ",")? __ recordType:RecordLabels __  "}" {
-    return t.Record(ANNOTATION, recordType, polyVar && polyVar[0] || null)
+  / "{" __ first:RangeRecordPart rest:(__ "," __ RangeRecordPart)* __ "}" {
+    var rows = [first].concat( rest.map(getLast) )
+    return t.Record(ANNOTATION, rows)
   }
 
+RangeRecordPart
+  = RecordVar
+  / RowSet
 
-RowGathering
+RecordVar
   = "..." __ polyVar:RowTypeVariable { return polyVar }
 
 RowTypeVariable
   = name:Identifier {
-    var rowTypeVar = typeVarsByName[name]
+    var rowTypeVar = rowTypeVarsByName[name]
     if ( ! rowTypeVar ) {
-      rowTypeVar = typeVarsByName[name] = t.RowTypeVar(ANNOTATION)
+      rowTypeVar = rowTypeVarsByName[name] = t.RowTypeVar(ANNOTATION)
       rowTypeVar.name = name
     }
     if ( rowTypeVar.tag !== 'RowTypeVar' ) {
@@ -121,15 +124,18 @@ RowTypeVariable
     return rowTypeVar
   }
 
-RecordLabels
+RowSet
   = first:LabelAndType __ pairs:(__ "," __ LabelAndType)* __ {
-    var recordType = { [first[0]]: first[1] }
+    var labels = { [first[0]]: first[1] }
 
     for (var i=0; i < pairs.length; i++) {
       var pair = getLast(pairs[i])
-      recordType[ pair[0] ] = pair[1]
+      if ( labels[ pair[0] ] ) {
+        throw new Error("Annotation: Duplicate property in object: " + pair[0])
+      }
+      labels[ pair[0] ] = pair[1]
     }
-    return recordType
+    return t.RowSet(labels)
   }
 
 LabelAndType

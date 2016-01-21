@@ -6,12 +6,12 @@ var typeCheck  = require(__src + '/type-checker').typeCheck
 
 
 test('String Template Parameter restrictions', (assert) => {
-  var ast = parseAST(`
+  var ast = buildAST(`
     let inc = (x) => x + 1
     let exclaim = (x) => \`\${inc(x)}!\`
     exclaim('nope')
   `)
-  var result = typeCheck(ast)
+  var result = typeCheck(null, ast)
 
   assert.ok(result.typeErrors.length === 1, "An error was correctly detected")
 

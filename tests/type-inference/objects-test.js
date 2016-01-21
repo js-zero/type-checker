@@ -54,3 +54,47 @@ test('Nested objects & functions', (assert) => {
 
   assert.end()
 })
+
+
+test('Adding properties', (assert) => {
+
+  testInference(assert, `
+    let a = { x: 10 }
+    let b = Object.let(a, { y: 20, z: 30 })
+  `, {
+    b: `{ x: Num, y: Num, z: Num }`
+  }, true)
+
+  assert.end()
+});
+
+
+test('Object extension', (assert) => {
+
+  testInference(assert, `
+    let extend = (obj) => Object.let(obj, { x: 10 })
+    let result = extend({ y: '20' })
+  `, {
+    extend: `({ r }) => { ...r, x: Num }`,
+    result: `{ x: Num, y: String }`
+  }, true)
+
+  assert.end()
+})
+
+
+test('Advanced Object Type Inference', (assert) => {
+
+  // Example code taken from: https://github.com/elm-lang/elm-compiler/issues/656
+  testInference(assert, `
+    let choose = (i, a, b) =>
+      i > 0 ? a : b
+
+    let test = (r, s) =>
+      choose( 0, Object.let(r, { x: 1 }), Object.let(s, { y: true }) )
+  `, {
+    test: `({ y: Bool, ...r }, { x: Num, ...r }) => { ...r, x: Num, y: Bool }`
+  }, true)
+
+  assert.end()
+});

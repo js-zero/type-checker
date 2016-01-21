@@ -1,3 +1,8 @@
+//
+// This unification algorithm is the combination of two papers:
+//   1. Primarily "Compositional Type Checking" by Dr. Gergö Éerdi, and
+//   2. "Extensible records with scoped labels" by Daan Leijen for the record system.
+//
 var _      = require('lodash')
 var util   = require('util')
 
@@ -68,6 +73,7 @@ function unify (env, constraints) {
   switch (left.tag) {
 
     case 'TypeVar':
+    case 'RowTypeVar':
       return [ t.Substitution(cs.left, cs.right) ].concat(
         unify( env, substituteConstraints(cs, constraints) )
       )
@@ -101,17 +107,19 @@ function unify (env, constraints) {
 
         var newConstraints = []
 
-        var rightRowsCopy = Object.assign({}, right.rows)
+        var leftType  = left.compress()
+        var rightType = right.compress()
 
-        var leftPolyReqs  = {}
-        var rightPolyReqs = {}
+        var extraRightLabels  = {}
+        var extraLeftLabels = {}
 
         //
         // First create constraints for all left-side labels
         //
-        for (var label in left.rows) {
-          if ( right.rows[label] ) {
-            newConstraints.push( t.Constraint( left.rows[label], right.rows[label] ) )
+        for (var lab in leftType.labels) {
+
+          if ( rightType.labels[lab] ) {
+            newConstraints.push( t.Constraint( leftType.labels[lab], rightType.labels[lab] ) )
           }
           else {
             //
@@ -121,46 +129,65 @@ function unify (env, constraints) {
             // If the right-side record has no poly var (i.e. is concrete),
             // then it does not unify with the left.
             //
-            if ( ! right.polyTypeVar ) {
+            if ( ! rightType.rowVars.length ) {
+              // TODO: Use more specific error type
               throw new Errors.TypeError(env, left, right)
             }
-            rightPolyReqs[label] = left.rows[label]
-          }
-          delete rightRowsCopy[label]
-        }
-
-        //
-        // Then create constraints for the remaining right-side labels.
-        // This is the same pattern as before, except we use `rightRowsCopy`
-        // to ensure we don't double-iterate over labels from the left.
-        //
-        for (var label in rightRowsCopy) {
-          if ( left.rows[label] ) {
-            newConstraints.push( t.Constraint( right.rows[label], left.rows[label] ) )
-          }
-          else {
-            if ( ! left.polyTypeVar ) {
-              throw new Errors.TypeError(env, left, left)
+            else if (rightType.rowVars.length >= 2) {
+              throw new Error("You have more than one row type variable? (right)")
             }
-            leftPolyReqs[label] = right.rows[label]
+            extraLeftLabels[lab] = leftType.labels[lab]
           }
+          // .compress() returns a copy, so this is safe
+          delete rightType.labels[lab]
         }
 
-        if ( left.polyTypeVar )  newConstraints.push( t.Constraint(left.polyTypeVar, leftPolyReqs) )
-        if ( right.polyTypeVar ) newConstraints.push( t.Constraint(right.polyTypeVar, leftPolyReqs) )
+        //
+        // Now fill in left poly constraints for the remaining right-side labels.
+        // We also reuse `rightType.labels` to ensure we don't
+        // double-iterate over labels from the left.
+        //
+        for (var lab in rightType.labels) {
+          if ( ! leftType.rowVars.length ) {
+            // TODO: Use more specific error type
+            throw new Errors.TypeError(env, left, left)
+          }
+          else if (leftType.rowVars.length >= 2) {
+            throw new Error("You have more than one row type variable? (left)")
+          }
+          extraRightLabels[lab] = rightType.labels[lab]
+        }
+
+        var leftExtraCount  = Object.keys(extraLeftLabels).length
+        var rightExtraCount = Object.keys(extraRightLabels).length
+
+        // If there is a row type variable, it must equal the extra labels.
+        // If there isn't, then create a failing constraint (empty record).
+        var leftRowVar  = leftType.rowVars[0] || toRecord({})
+        var rightRowVar = rightType.rowVars[0] || toRecord({})
+
+        if ( leftExtraCount > 0 && rightExtraCount === 0 ) {
+          newConstraints.push( t.Constraint(rightRowVar, toRecord(extraLeftLabels)) )
+        }
+        else if ( leftExtraCount === 0 && rightExtraCount > 0 ) {
+          newConstraints.push( t.Constraint(leftRowVar, toRecord(extraRightLabels)) )
+        }
+        else if ( leftExtraCount > 0 && rightExtraCount > 0 ) {
+
+          // TODO: Check for recursive row types (somehow?)
+
+          var unifyRowVar = t.RowTypeVar()
+          newConstraints.push(
+            t.Constraint( leftRowVar,  t.Record(null, [ unifyRowVar, t.RowSet(extraRightLabels) ]) ),
+            t.Constraint( rightRowVar, t.Record(null, [ unifyRowVar, t.RowSet(extraLeftLabels) ]) )
+          )
+        }
 
         log("=> Pushing new constraints from Record:", inspect(newConstraints))
         pushAll(constraints, newConstraints)
+
         return unify(env, constraints)
       }
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
-      // LAST TIME: UNIFY RECORD AND UPDATE TEST HELPER TO REPLACE TYPE VARS WITH NAMED TYPE VARS, THEN REVERT freshTypeVar BACK TO THE WAY IT WAS
 
     case 'TermNum':
     case 'TermBool':
@@ -230,5 +257,7 @@ function pushAll (array, otherArray) {
   array.push.apply(array, otherArray)
   return array
 }
+
+var toRecord = (rows) => t.Record(null, t.RowSet(rows))
 
 function inspect (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }

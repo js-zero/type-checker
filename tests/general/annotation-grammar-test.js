@@ -14,8 +14,8 @@ test('Object annotations', (assert) => {
   var rowTypeVar = t.RowTypeVar()
   var expectedType = t.Arrow(
     null,
-    [ t.Record(null, {}, rowTypeVar) ],
-    t.Record(null, { x: t.TermNum() }, rowTypeVar)
+    [ t.Record(null, [ rowTypeVar ]) ],
+    t.Record(null, [ rowTypeVar, t.RowSet({ x: t.TermNum() }) ])
   )
   annotations.forEach( ann =>
     assert.ok( ann.match(expectedType) )
@@ -24,8 +24,8 @@ test('Object annotations', (assert) => {
 
   var invalidType = t.Arrow(
     null,
-    [ t.Record(null, {}, t.RowTypeVar()) ],
-    t.Record(null, { x: t.TermNum() }, t.RowTypeVar())
+    [ t.Record(null, [ t.RowTypeVar() ]) ],
+    t.Record(null, [ t.RowTypeVar(), t.RowSet({ x: t.TermNum() }) ])
   )
   annotations.forEach( ann =>
     assert.notOk( ann.match(invalidType), "does not match against separate type variables" )

@@ -30,7 +30,7 @@ $ jsz my-file.js
 
 ## Type System
 
-The JS Zero type system is based on Georgö Érdi's "Compositional Type Checking" MSc thesis. The big advantage to using this type system is twofold: **better errors**, and **"modular" typing**.
+The JS Zero type system is based on Gergö Érdi's "Compositional Type Checking" MSc thesis. The big advantage to using this type system is twofold: **better errors**, and **"modular" typing**.
 
 ### Better Error Messages
 

@@ -21,9 +21,9 @@ var fail = require('./assert').fail
 var _ = require('lodash')
 
 
-exports.typeCheck = function (ast, scopes) {
+exports.typeCheck = function (runtimeEnv, ast) {
 
-  var env = Env(null)
+  var env = Env(runtimeEnv)
 
   try {
     buildEnv(env, ast)
@@ -92,13 +92,15 @@ function buildEnv (env, node) {
         && node.expression.tag.name === '$assume'
       ) {
 
-        var parts = node.expression.quasi.quasis[0].value.raw.split(':')
-        if ( parts.length !== 2 ) {
-          throw new Error(`A type annotation must have two parts separated by a colon, e.g. myFunc : Num`)
+        var annotationSrc = node.expression.quasi.quasis[0].value.raw
+
+        if ( ! annotationSrc.match(/^ *[a-z][a-z0-9]* *:/i) ) {
+          throw new Error(`A type annotation must have a name and a type, separated by a colon, e.g. myFunc : Num`)
         }
 
-        var varName = _.trim( parts[0] )
-        var annotation = compileAnnotation( parts[1] )
+        var colonIndex = annotationSrc.indexOf(':')
+        var varName = _.trim( annotationSrc.substring(0, colonIndex) )
+        var annotation = compileAnnotation( annotationSrc.substring(colonIndex+1) )
 
         return env.assume( varName, Typing({}, annotation.type) )
       }
@@ -234,30 +236,72 @@ function inferExpr (env, node) {
     break; case 'BinaryExpression':
       log("> BinaryExpression", node.operator)
 
-      //
-      // TODO: Handle binary operators other than +
-      //
-
       var leftTyping = inferExpr(env, node.left)
       var rightTyping = inferExpr(env, node.right)
 
-      var substitutions = unifyMonoEnvs(
-        _.identity,
-        env,
-        [ leftTyping.monoEnv, rightTyping.monoEnv ],
-        [
-          t.Constraint( leftTyping.type, t.TermNum(node.left) ),
-          t.Constraint( rightTyping.type, t.TermNum(node.right) )
-        ]
+      if (
+        node.operator === '+' || node.operator === '-' ||
+        node.operator === '*' || node.operator === '/' ||
+        node.operator === '%' || node.operator === '**'
       )
+      {
+        //
+        // Numerical operator
+        //
+        var substitutions = unifyMonoEnvs(
+          _.identity,
+          env,
+          [ leftTyping.monoEnv, rightTyping.monoEnv ],
+          [
+            t.Constraint( leftTyping.type, t.TermNum(node.left) ),
+            t.Constraint( rightTyping.type, t.TermNum(node.right) )
+          ]
+        )
 
-      // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
-      var monoEnv = Typing.substituteAndAggregateMonoEnvs(
-        substitutions,
-        [leftTyping.monoEnv, rightTyping.monoEnv]
+        // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
+        var monoEnv = Typing.substituteAndAggregateMonoEnvs(
+          substitutions,
+          [leftTyping.monoEnv, rightTyping.monoEnv]
+        )
+
+        return Typing(monoEnv, t.TermNum(node))
+
+      }
+      else if (
+        node.operator === '>'   || node.operator === '<'   ||
+        node.operator === '>='  || node.operator === '<='  ||
+        // TODO: When boolean or string is enforced, move these four to another else branch
+        node.operator === '&&'  || node.operator === '||' ||
+        node.operator === '===' || node.operator === '!=='
       )
+      {
+        //
+        // Comparison operator
+        //
+        var substitutions = unifyMonoEnvs(
+          _.identity, // TODO: Boolean operator-specific error
+          env,
+          [ leftTyping.monoEnv, rightTyping.monoEnv ],
+          [
+            // TODO: Enforce boolean or string
+            t.Constraint( leftTyping.type, rightTyping.type ),
+          ]
+        )
 
-      return Typing(monoEnv, t.TermNum(node))
+        // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
+        var monoEnv = Typing.substituteAndAggregateMonoEnvs(
+          substitutions,
+          [leftTyping.monoEnv, rightTyping.monoEnv]
+        )
+
+        return Typing(monoEnv, t.TermBool(node))
+
+      }
+      else {
+        // TODO: Better error message
+        throw new Error(`Operator not supported: ${node.operator}`)
+      }
+
 
     break; case 'ArrowFunctionExpression':
       log("> ArrowFunctionExpression")
@@ -367,7 +411,7 @@ function inferExpr (env, node) {
 
       return Typing(
         monoEnv,
-        t.Record(node, _.mapValues(rowTypings, r => r.type ), null)
+        t.Record( node, [ t.RowSet(_.mapValues(rowTypings, r => r.type )) ] )
       )
 
     break; case 'MemberExpression':
@@ -385,7 +429,7 @@ function inferExpr (env, node) {
         throw new Errors.NotAnObjectTypeError(env, node, recordTyping, label)
       }
 
-      var memberType = recordTyping.type.rows[label]
+      var memberType = recordTyping.type.lookupLabelType(label)
 
       if ( ! memberType ) {
         throw new Errors.NoSuchPropertyTypeError(env, node, recordTyping, label)
@@ -401,6 +445,35 @@ function inferExpr (env, node) {
         memberType
       )
 
+    break; case 'ConditionalExpression':
+
+      var ifTyping   = inferExpr(env, node.test)
+      var thenTyping = inferExpr(env, node.consequent)
+      var elseTyping = inferExpr(env, node.alternate)
+
+      var substitutions = unifyMonoEnvs(
+        _.identity, // TODO: Conditional-specific error
+        env,
+        [ ifTyping.monoEnv, thenTyping.monoEnv, elseTyping.monoEnv ],
+        [
+          // Constraint #1: The test part of the conditional must be a boolean
+          t.Constraint( ifTyping.type,   t.TermBool(node.test) ),
+
+          // Constraint #2: The two branches must be the same type
+          t.Constraint( thenTyping.type, elseTyping.type ),
+        ]
+      )
+
+      // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
+      var monoEnv = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        [ifTyping.monoEnv, thenTyping.monoEnv, elseTyping.monoEnv]
+      )
+
+      return Typing(
+        monoEnv,
+        t.applySubs(substitutions, thenTyping.type)
+      )
 
     default:
       throw new Error("Expression not supported: " + node.type)
@@ -545,8 +618,9 @@ function absFunction (env, node) {
 
 function litTermFromNode (node) {
   switch (typeof node.value) {
-    case 'number': return t.TermNum(node)
-    case 'string': return t.TermString(node)
+    case 'number':  return t.TermNum(node)
+    case 'string':  return t.TermString(node)
+    case 'boolean': return t.TermBool(node)
   }
   fail("No such type from literal: " + node.value)
 }

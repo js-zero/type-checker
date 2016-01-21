@@ -6,8 +6,8 @@ var typeCheck  = require(__src + '/type-checker').typeCheck
 
 
 test('Parameter Mismatch', (assert) => {
-  var ast = parseAST(' let f = (x) => x + 1; f("hi"); ')
-  var result = typeCheck(ast)
+  var ast = buildAST(' let f = (x) => x + 1; f("hi"); ')
+  var result = typeCheck(null, ast)
 
   assert.ok(result.typeErrors.length === 1)
 

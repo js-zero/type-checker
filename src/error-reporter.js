@@ -132,6 +132,12 @@ reporters.ArrayLiteralTypeError = function (env, err) {
 `
 }
 
+
+reporters.NoSuchPropertyTypeError = function (env, err) {
+  // TODO
+  console.log( require('util').inspect(err, { depth: 15 }) )
+}
+
 //
 // Helpers
 //

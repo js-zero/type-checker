@@ -29,10 +29,7 @@ var args = process.argv.slice(2).filter(function(arg) {
 var jsz = require('../index.js')
 
 if (opts.compile) {
-  var fs = require('fs')
-  var result = jsz.infer( fs.readFileSync(args[0], 'utf8') )
-  var output = JSON.stringify(result.env, (k,v) => (k === 'source') ? undefined : v)
-  console.log(output)
+  console.log("JSON-output compilation coming soon.")
 }
 else {
   jsz.typeCheckFile( args[0] )

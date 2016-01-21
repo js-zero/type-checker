@@ -1,6 +1,9 @@
 var t = require('./definitions')
 var _ = require('lodash')
 
+//
+// TODO: Optimize to only return new types if transform had any effect.
+//
 module.exports = function transform (defs, ctx, type) {
   if ( ! type ) return type
   if (type.tag === 'Substitution') throw new Error(`wut ${JSON.stringify(type)}`)
@@ -24,9 +27,12 @@ module.exports = function transform (defs, ctx, type) {
   else if ( type_.tag === 'Record' ) {
     return t.Record(
       type_.source,
-      _.mapValues( type_.rows, ty => transform(defs, ctx, ty) ),
+      _.map( type_.rows, ty => transform(defs, ctx, ty) ),
       transform( defs, ctx, type_.polyTypeVar )
     )
+  }
+  else if ( type_.tag === 'RowSet' ) {
+    return t.RowSet( _.mapValues( type_.labelTypes, lab => transform(defs, ctx, lab) ) )
   }
   else {
     return type_

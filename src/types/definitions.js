@@ -57,6 +57,7 @@ exports.Substitution = function (typeVariable, value) {
 // Records
 var Record = require('./records')
 exports.Record = Record
+exports.RowSet = Record.RowSet
 exports.RowTypeVar = Record.RowTypeVar
 exports.NamedRowTypeVar = Record.NamedRowTypeVar
 

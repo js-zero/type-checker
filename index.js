@@ -5,8 +5,12 @@ var pretty  = require('./src/pretty')
 
 exports.typeCheckFile = function (file) {
 
-  var source = fs.readFileSync(file, 'utf8')
-  var result = exports.infer(source)
+  var runtimeFile   = __dirname + '/src/runtime.js'
+  var runtimeSource = fs.readFileSync(runtimeFile, 'utf8')
+  var runtimeEnv    = exports.infer(null, runtimeSource, runtimeFile).env
+
+  var source  = fs.readFileSync(file, 'utf8')
+  var result  = exports.infer(runtimeEnv, source, file)
 
   console.log("\n  I have inferred the following types:\n")
   console.log(pretty.envC(result.env))
@@ -27,7 +31,7 @@ exports.typeCheckFile = function (file) {
 }
 
 
-exports.infer = function (source, filename) {
+exports.infer = function (env, source, filename) {
   var ast = esprima.parse(source, {
     loc: true,
     source: filename || '[inline source code]',
@@ -35,5 +39,5 @@ exports.infer = function (source, filename) {
   })
 
   var TypeChecker = require('./src/type-checker')
-  return TypeChecker.typeCheck(ast)
+  return TypeChecker.typeCheck(env, ast)
 }

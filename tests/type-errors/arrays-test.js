@@ -7,8 +7,8 @@ var Errors      = require(__src + '/type-checker/type-errors')
 
 test('Incongruent array literal', (assert) => {
 
-  var ast = parseAST(' [10, 20, "nope"] ')
-  var result = typeCheck(ast)
+  var ast = buildAST(' [10, 20, "nope"] ')
+  var result = typeCheck(null, ast)
 
   assert.ok(result.typeErrors.length === 1)
 

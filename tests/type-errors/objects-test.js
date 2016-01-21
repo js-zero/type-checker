@@ -8,12 +8,12 @@ var Typing    = require(__src + '/type-checker/typing')
 
 test('Incompatible objects', (assert) => {
 
-  var ast = parseAST(`
+  var ast = buildAST(`
     let o1  = { x: 1 }
     let o2  = { x: "2" }
     let arr = [o1, o2]
   `)
-  var result = typeCheck(ast)
+  var result = typeCheck(null, ast)
 
   assert.ok(result.typeErrors.length === 1)
 
@@ -21,8 +21,8 @@ test('Incompatible objects', (assert) => {
   assert.ok( err instanceof Errors.ArrayLiteralTypeError )
   assert.ok( err.elemTypings.length === 2, "All element types should be included" )
 
-  var o1ExpectedType = t.Record(null, { x: t.TermNum() })
-  var o2ExpectedType = t.Record(null, { x: t.TermString() })
+  var o1ExpectedType = t.Record(null, [ t.RowSet({ x: t.TermNum() }) ])
+  var o2ExpectedType = t.Record(null, [ t.RowSet({ x: t.TermString() }) ])
 
   assert.ok( t.eq(err.elemTypings[0].type, o1ExpectedType) )
   assert.ok( t.eq(err.elemTypings[1].type, o2ExpectedType) )
@@ -33,11 +33,11 @@ test('Incompatible objects', (assert) => {
 
 test('Non-existant property', (assert) => {
 
-  var ast = parseAST(`
+  var ast = buildAST(`
     let o  = { x: 1 }
     let result = o.y
   `)
-  var result = typeCheck(ast)
+  var result = typeCheck(null, ast)
 
   assert.ok(result.typeErrors.length === 1)
 
@@ -46,7 +46,7 @@ test('Non-existant property', (assert) => {
 
   assert.equal( err.propertyName, 'y' )
 
-  var expectedType = t.Record(null, { x: t.TermNum() })
+  var expectedType = t.Record(null, [ t.RowSet({ x: t.TermNum() }) ])
 
   assert.ok( t.eq(err.objectTyping.type, expectedType) )
 
@@ -56,11 +56,11 @@ test('Non-existant property', (assert) => {
 
 test('Accessing a property of a non-object', (assert) => {
 
-  var ast = parseAST(`
+  var ast = buildAST(`
     let str = "hi"
     let result = str.x
   `)
-  var result = typeCheck(ast)
+  var result = typeCheck(null, ast)
 
   assert.ok(result.typeErrors.length === 1)
 

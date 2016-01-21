@@ -72,14 +72,29 @@ function substitute (sub, type) {
   return transform(substituteNodes, sub, type)
 }
 
-var attemptSub = (sub, type) =>
-  eq(sub.left, type)
-  ? Object.assign(sub.right, { source: type.source })
-  : type
-
 var substituteNodes = {
-  'TypeVar': attemptSub,
-  'RowTypeVar': attemptSub
+  'TypeVar': function (sub, type) {
+    return eq(sub.left, type)
+      ? Object.assign(sub.right, { source: type.source })
+      : type
+  },
+  'Record': function (sub, type) {
+    var matchFound = false
+    var newRows = type.rows.map(function(row) {
+      if (row.tag === 'RowTypeVar') {
+        if ( ! eq(sub.left, row) ) return row
+        matchFound = true
+        return sub.right.tag === 'Record'
+          ? sub.right.rows
+          : sub.right
+      }
+      else return row
+    })
+
+    return matchFound
+      ? t.Record( type.source, Record.optimizeRows(_.flatten(newRows)) )
+      : type
+  }
 }
 
 

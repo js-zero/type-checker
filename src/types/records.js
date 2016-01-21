@@ -8,13 +8,51 @@ module.exports = Record
 // Debugging
 var includeSource = process.env.DEBUG_TYPES ? false : true
 
-function Record (sourceNode, rows, polyTypeVar) {
-  return {
+function Record (sourceNode, rows) {
+  return Object.assign(Object.create(methods), {
     tag: 'Record',
     rows: rows,
-    polyTypeVar: polyTypeVar || null,
     source: includeSource && sourceNode,
+  })
+}
+
+var methods = {
+  lookupLabelType: function (label) {
+    for (var i=this.rows.length-1; i >= 0; i--) {
+      var row = this.rows[i]
+      if ( row.tag === 'RowSet' && row.labelTypes[label] )
+        return row.labelTypes[label]
+    }
+    return null
+  },
+
+  lookupRowTypeVar: function (_id) {
+    for (var i=this.rows.length-1; i >= 0; i--) {
+      var row = this.rows[i]
+      if ( row.tag === 'RowTypeVar' && row._id === _id ) return row
+    }
+    return null
+  },
+
+  compress: function () {
+    // TODO: Cache (after transform optimization)
+    var result = { labels: {}, rowVars: [] }
+
+    for (var i=this.rows.length-1; i >= 0; i--) {
+      var row = this.rows[i]
+      if ( row.tag === 'RowSet' )
+        for (var lab in row.labelTypes) {
+          if ( ! result.labels[lab] ) result.labels[lab] = row.labelTypes[lab]
+        }
+      else
+        result.rowVars.push(row)
+    }
+    return result
   }
+}
+
+Record.RowSet = function (labelTypes) {
+  return { tag: 'RowSet', labelTypes: labelTypes }
 }
 
 // Type variables for rows are treated separately from normal type variables
@@ -34,53 +72,54 @@ Record.freshTypeVars = function (recurse, cache, record) {
 }
 Record.isEq = recordEq
 
-function recordEq (eq, a, b) {
+function recordEq (eq, recA, recB) {
 
-  // If both records are polymorphic,
-  // ensure their row type variables are the same.
-  if ( a.polyTypeVar && b.polyTypeVar ) {
-    if ( ! eq(a.polyTypeVar, b.polyTypeVar) ) return false
-  }
-
-  // To simplify, ensure a present polymorphic record is on the right
-  if ( a.polyTypeVar ) {
-    var swap = a; a = b; b = swap;
-  }
-
-  var aLabels = Object.keys(a.rows)
-  var bLabels = Object.keys(b.rows)
-
-  if ( b.polyTypeVar ) {
-    //
-    // Easy optimization:
-    // A record cannot be a subset of a polymorphic record if
-    // the record requires fewer labels than the polymorphic record.
-    //
-    // Example: { x: 1, y: 2 } is a subtype of { x: 1, ...r }
-    // However, { x: 1, y: 2 } is NOT a subtype of { x: 1, y: 2, z: 3, ...r }
-    //
-    if (aLabels.length < bLabels.length) return false
-  }
-  else {
-    //
-    // Easy optimization:
-    // Since both records must be exactly the same,
-    // if the number of labels do not match, exit early.
-    //
-    if (aLabels.length !== bLabels.length) return false
-  }
-
-  assert.ok( bLabels.length <= aLabels.length )
+  var aType = recA.compress()
+  var bType = recB.compress()
 
   //
-  // At this point we can finally compare row types.
+  // Ensure row type vars are equal
   //
-  for (var i=0; i < aLabels.length; i++) {
-    var isEq = eq(
-      a.rows[ aLabels[i] ],
-      b.rows[ bLabels[i] ]
-    )
-    if ( ! isEq ) return false
+  if ( aType.rowVars.length !== bType.rowVars.length ) return false
+
+  var allMatch = _.all(
+    aType.rowVars,
+    (aVar) => _.any(bType.rowVars, (bVar) => eq(aVar, bVar) )
+  )
+  if ( ! allMatch ) return false
+
+  //
+  // Ensure all label types in record a match those of record b
+  //
+  for (var lab in aType.labels ) {
+    var a = aType.labels[lab]
+    var b = bType.labels[lab]
+
+    if ( ! b || ! eq(a, b) ) return false
   }
+
+  //
+  // Ensure there are no extra labels in record b
+  //
+  for (var lab in bType.labels ) {
+    if ( ! aType.labels[lab] ) return false
+  }
+
   return true
+}
+
+//
+// Warning: This function is destructive!
+//
+Record.optimizeRows = function (rows) {
+  for (var i=rows.length-1; i >= 1; i--) {
+    var current = rows[i]
+    var next    = rows[i-1]
+    if (current.tag === 'RowSet' && next.tag === 'RowSet') {
+      // Replace both with a single set
+      var newSet = Record.RowSet( Object.assign({}, next.labelTypes, current.labelTypes) )
+      rows.splice( i-1, 2, newSet )
+    }
+  }
+  return rows
 }
