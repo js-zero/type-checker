@@ -20,8 +20,12 @@ var methods = {
   lookupLabelType: function (label) {
     for (var i=this.rows.length-1; i >= 0; i--) {
       var row = this.rows[i]
-      if ( row.tag === 'RowSet' && row.labelTypes[label] )
+      if ( row.tag === 'RowSet' && row.labelTypes[label] ) {
         return row.labelTypes[label]
+      }
+      else if ( row.tag === 'RowTypeVar' ) {
+        return row
+      }
     }
     return null
   },

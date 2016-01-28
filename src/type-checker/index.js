@@ -420,29 +420,92 @@ function inferExpr (env, node) {
 
       if ( node.property.type !== 'Identifier' ) {
         // TODO: Better error message (show location in source code)
-        fail(`Only named e.g. (.x) are allowed for object keys`)
+        fail(`Computed properties are not supported.`)
       }
 
       var label = node.property.name
+      var recordConstraints = []
 
-      if ( recordTyping.type.tag !== 'Record' ) {
+      // This may or not be used, depending on what recordTyping is.
+      var memberTypeVar = t.TypeVar()
+
+      if ( recordTyping.type.tag === 'Record' ) {
+        var knownType = recordTyping.type.lookupLabelType(label)
+
+        if ( knownType === null ) {
+          //
+          // The label is not explicitly in the type,
+          // and the record also does not have a row type variable.
+          // Therefore, user is trying to access a label that
+          // does not exist in a closed record.
+          //
+          throw new Errors.NoSuchPropertyTypeError(env, node, recordTyping, label)
+        }
+        else if ( knownType.tag === 'RowTypeVar' ) {
+          //
+          // If we reach this point, it means the label in question is not directly known
+          // in the type, but it's possible for the label to exist in the record
+          // (since the record is polymorphic via its a row type variable.)
+          //
+          // This is where we need to create a constraint; the record must contain this label.
+          //
+          var rowTypeVar = knownType
+
+          recordConstraints.push( t.Constraint(
+            recordTyping.type,
+            t.Record(node, [ rowTypeVar, t.RowSet({ [label]: memberTypeVar }) ])
+          ) )
+        }
+        else {
+          //
+          // At this point it turns out we already know the type of our label.
+          //
+          // Record members are only monotypes, and not full typings.
+          // However, the record itself contains necessary monoEnv restrictions.
+          // Return such restrictions along with the member type.
+          //
+          return Typing(
+            recordTyping.monoEnv,
+            knownType
+          )
+        }
+      }
+      else if ( recordTyping.type.tag === 'TypeVar' ) {
+        //
+        // This type variable must be a record that contains at least the label type.
+        //
+        var typeVar = recordTyping.type
+
+        recordConstraints.push( t.Constraint(
+          typeVar,
+          t.Record(node, [ t.RowTypeVar(), t.RowSet({ [label]: memberTypeVar }) ])
+        ) )
+      }
+      else {
         throw new Errors.NotAnObjectTypeError(env, node, recordTyping, label)
       }
 
-      var memberType = recordTyping.type.lookupLabelType(label)
+      var substitutions = unifyMonoEnvs(
+        _.identity,
+        env,
+        [ recordTyping.monoEnv ],
+        recordConstraints
+      )
 
-      if ( ! memberType ) {
-        throw new Errors.NoSuchPropertyTypeError(env, node, recordTyping, label)
-      }
+      // Δ = 𝚿Δ_1 ∪ 𝚿Δ_2
+      var memberMonoEnv = Typing.substituteAndAggregateMonoEnvs(
+        substitutions,
+        [ recordTyping.monoEnv ]
+      )
 
       //
-      // Record members are only monotypes, and not full typings.
-      // However, the record itself contains necessary monoEnv restrictions.
-      // Return such restrictions along with the member type.
+      // If we reach this point, we don't actually know what the type of
+      // the member expression will be.
+      // Therefore, return a typing with a TypeVar as the type.
       //
       return Typing(
-        recordTyping.monoEnv,
-        memberType
+        memberMonoEnv,
+        memberTypeVar
       )
 
     break; case 'ConditionalExpression':

@@ -34,6 +34,12 @@ module.exports = function transform (defs, ctx, type) {
   else if ( type_.tag === 'RowSet' ) {
     return t.RowSet( _.mapValues( type_.labelTypes, lab => transform(defs, ctx, lab) ) )
   }
+  else if ( type_.tag === 'Constraint' ) {
+    return t.Constraint(
+      transform(defs, ctx, type_.left),
+      transform(defs, ctx, type_.right)
+    )
+  }
   else {
     return type_
   }

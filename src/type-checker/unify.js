@@ -74,8 +74,10 @@ function unify (env, constraints) {
 
     case 'TypeVar':
     case 'RowTypeVar':
-      return [ t.Substitution(cs.left, cs.right) ].concat(
-        unify( env, substituteConstraints(cs, constraints) )
+      var subst = t.Substitution(cs.left, cs.right)
+
+      return [ subst ].concat(
+        unify( env, constraints.map( c => t.substitute(subst, c) ) )
       )
 
     case 'Con':
@@ -204,50 +206,6 @@ function unify (env, constraints) {
 
 }
 
-// Exported for testing
-exports.substituteConstraints = substituteConstraints
-
-function substituteConstraints (sub, constraints) {
-  // TODO: occurs check
-  log(`${sub.left.tag} ${sub.left._id || ''} = ${sub.right.tag} ${sub.right._id || ''}`)
-
-  return constraints.map(function (c) {
-    log("  [sub] checking against", c.left.tag, c.left._id || '', "=", c.right.tag, c.right._id || '')
-
-    if (t.eq(c.left, sub.left)) {
-      log("! [sub] Replacing", c.left, "with", sub.right)
-      return t.Constraint(sub.right, c.right)
-    }
-    else if (t.eq(c.right, sub.left)) {
-      log("!.[sub] Replacing", c.right, "with", sub.right)
-      return t.Constraint(c.left, sub.right)
-    }
-    else if (c.right.tag === 'Arrow') {
-      c.right.domain = c.right.domain.map(function(term) {
-        log("  [sub][arrow] checking against", term.tag, term._id || '')
-        if (t.eq(term, sub.left)) {
-          log("! [sub][arrow] Replacing", term, "with", sub.right)
-          return sub.right
-        }
-        else return term
-      })
-      var range = c.right.range
-      log("  [sub][arrow] checking range against", range.tag, range._id || '')
-      if (t.eq(range, sub.left)) {
-        log("! [sub][arrow] Replacing range", range, "with", sub.right)
-        c.right.range = sub.right
-      }
-      return c
-    }
-    else {
-      // No substitutions to make.
-      return c
-    }
-  })
-}
-
-function Row (record) {}
-
 var log = function () {
   if (! process.env.DEBUG_TYPES) return
   console.log.apply(console, [].slice.call(arguments))
@@ -258,6 +216,6 @@ function pushAll (array, otherArray) {
   return array
 }
 
-var toRecord = (rows) => t.Record(null, t.RowSet(rows))
+var toRecord = (rows) => t.Record(null, [t.RowSet(rows)])
 
 function inspect (obj) { return util.inspect(obj, { showHidden: false, depth: null }) }

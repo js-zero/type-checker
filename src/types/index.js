@@ -69,6 +69,7 @@ function matchTypeVars (a, b) {
 }
 
 function substitute (sub, type) {
+  if ( ! type.tag ) throw new Error("[substitute] Target must be a type")
   return transform(substituteNodes, sub, type)
 }
 
@@ -78,17 +79,40 @@ var substituteNodes = {
       ? Object.assign(sub.right, { source: type.source })
       : type
   },
+
   'Record': function (sub, type) {
+    // Trade complexity for performance.
+    // Records are common, so it should be worth it.
     var matchFound = false
+
     var newRows = type.rows.map(function(row) {
       if (row.tag === 'RowTypeVar') {
         if ( ! eq(sub.left, row) ) return row
         matchFound = true
+        // Here we are dealing with a type of kind _record_;
+        // type is either a RowTypeVar or Record.
         return sub.right.tag === 'Record'
           ? sub.right.rows
           : sub.right
       }
-      else return row
+      else if (row.tag === 'RowSet') {
+        var submatchFound = false
+
+        var newLabelTypes = _.mapValues(row.labelTypes, function (ty) {
+          if ( ! eq(sub.left, ty) ) return ty
+          submatchFound = true
+          // Here we are dealing with a standard kind of type; just replace it.
+          return sub.right
+        })
+
+        if (submatchFound) {
+          matchFound = true
+          return t.RowSet(newLabelTypes)
+        }
+        else {
+          return row
+        }
+      }
     })
 
     return matchFound
@@ -99,6 +123,7 @@ var substituteNodes = {
 
 
 function applySubs (substitutions, type) {
+  if ( ! type.tag ) throw new Error("[substitute] Target must be a type")
   return substitutions.reduce( (ty, sub, i) => substitute(sub, ty), type )
 }
 

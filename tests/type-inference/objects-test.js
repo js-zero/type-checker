@@ -14,6 +14,20 @@ test('Instantiation', (assert) => {
 });
 
 
+test('Property lookup inference', (assert) => {
+
+  testInference(assert, `
+    let getName = (obj) => obj.name
+    let name = getName({ x: 10, name: 'alice' })
+  `, {
+    getName: `({ name: a, ...r }) => a`,
+    name:    `String`
+  })
+
+  assert.end()
+});
+
+
 test('Property functions', (assert) => {
 
   testInference(assert, `
